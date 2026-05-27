@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <title>Isartab · Impressum & Datenschutz</title>
+<script src="/static/vendor/tailwind.js"></script>
+<style>
+  @font-face { font-family: 'Geist Regular';  src: url('/static/fonts/geist/Geist-Regular.woff2')  format('woff2'); font-weight: 400; }
+  @font-face { font-family: 'Geist Halbfett'; src: url('/static/fonts/geist/Geist-SemiBold.woff2') format('woff2'); font-weight: 600; }
+  body {
+    background-color: #ffffff;
+    background-image: url('/static/assets/bg.png');
+    background-repeat: no-repeat;
+    background-position: top center;
+    background-size: 100% auto;
+  }
+  .font-geist-regular  { font-family: 'Geist Regular', sans-serif;  font-weight: 400; }
+  .font-geist-halbfett { font-family: 'Geist Halbfett', sans-serif; font-weight: 600; }
+</style>
+</head>
+
+<body class="min-h-screen flex flex-col items-center font-sans">
+
+  <div class="absolute top-6 left-6 sm:top-8 sm:left-8">
+    <a href="/"><img src="/static/assets/isartab_logo.png" alt="Isartab" class="h-8 sm:h-10 object-contain" /></a>
+  </div>
+
+  <main class="w-full max-w-[640px] px-6 mt-28 sm:mt-32 mb-12 font-geist-regular text-[#1B1B1B] text-sm leading-relaxed">
+
+    <h1 class="font-geist-halbfett text-2xl mb-1" id="impressum">Impressum</h1>
+    <p class="text-[#616161] text-xs mb-3">Angaben gemäß § 5 TMG</p>
+    <p>
+      [Name des Betreibers / Vereins]<br>
+      [Straße, Hausnummer]<br>
+      [PLZ Ort]<br>
+      [Land]
+    </p>
+    <p class="mt-3">
+      E-Mail: [kontakt@example.org]<br>
+      [ggf. Vereinsregister + Nummer]<br>
+      Vertretungsberechtigt: [Name]
+    </p>
+    <p class="mt-3 text-[#616161] text-xs">
+      Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: wie oben.
+    </p>
+
+    <hr class="my-8 border-[#eee]">
+
+    <h1 class="font-geist-halbfett text-2xl mb-3" id="datenschutz">Datenschutzerklärung</h1>
+
+    <h2 class="font-geist-halbfett mt-4 mb-1">Verantwortlicher</h2>
+    <p>Siehe Impressum oben.</p>
+
+    <h2 class="font-geist-halbfett mt-4 mb-1">Welche Daten wir verarbeiten</h2>
+    <p>
+      Wenn du dich für ein Debatten-Event registrierst, speichern wir:
+      Name, Sprach-/Format-/Rollen-Präferenz, Erfahrungslevel und optionale
+      Sonderwünsche. Diese Daten sind nötig, um dich Räumen zuzuweisen
+      (Art. 6 Abs. 1 lit. b DSGVO – Vertragsanbahnung/-erfüllung).
+    </p>
+
+    <h2 class="font-geist-halbfett mt-4 mb-1">Wie lange wir sie speichern</h2>
+    <p>
+      Die Daten liegen in einer SQLite-Datei auf unserem Server, bis das
+      Event manuell gelöscht wird (i.d.R. wenige Tage nach Veranstaltung).
+      Logs des Hosting-Anbieters werden nach max. 14 Tagen gelöscht.
+    </p>
+
+    <h2 class="font-geist-halbfett mt-4 mb-1">Cookies / Local Storage</h2>
+    <p>
+      Wir setzen keine Cookies. Im <code>localStorage</code> deines Browsers
+      speichern wir einen zufälligen Token, damit dein Browser dich beim
+      nächsten Aufruf wiedererkennt. Der Token enthält keine Personendaten
+      und verlässt dein Gerät nur als Teil der Event-Anfrage.
+    </p>
+
+    <h2 class="font-geist-halbfett mt-4 mb-1">Weitergabe an Dritte</h2>
+    <p>
+      Keine. Alle Skripte und Schriften liegen auf unserem Server; es gibt
+      kein Tracking, keine Analytics, keine externen CDNs.
+    </p>
+
+    <h2 class="font-geist-halbfett mt-4 mb-1">Deine Rechte</h2>
+    <p>
+      Auskunft, Berichtigung, Löschung, Einschränkung, Widerspruch und
+      Datenübertragbarkeit (Art. 15–21 DSGVO). Eine Mail an die
+      Kontaktadresse oben genügt. Beschwerderecht bei der zuständigen
+      Datenschutz-Aufsichtsbehörde.
+    </p>
+
+    <p class="mt-8 text-[#959595] text-xs">Stand: 2026-05</p>
+
+  </main>
+
+  <footer class="w-full flex flex-col items-center mb-6 px-4">
+    <a href="/" class="text-[#cccccc] hover:text-gray-400 transition-colors text-sm">← back</a>
+  </footer>
+
+</body>
+</html>

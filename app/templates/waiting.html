@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <title>Isartab · Waiting</title>
+<script src="/static/vendor/tailwind.js"></script>
+<style>
+  @font-face { font-family: 'Geist Light';       src: url('/static/fonts/geist/Geist-Light.woff2')       format('woff2'); font-weight: 300; }
+  @font-face { font-family: 'Geist Regular';     src: url('/static/fonts/geist/Geist-Regular.woff2')     format('woff2'); font-weight: 400; }
+  @font-face { font-family: 'Geist Medium';      src: url('/static/fonts/geist/Geist-Medium.woff2')      format('woff2'); font-weight: 500; }
+  @font-face { font-family: 'Geist Halbfett';    src: url('/static/fonts/geist/Geist-SemiBold.woff2')    format('woff2'); font-weight: 600; }
+  @font-face { font-family: 'Geist Fett';        src: url('/static/fonts/geist/Geist-Bold.woff2')        format('woff2'); font-weight: 700; }
+  @font-face { font-family: 'Geist Mono Regular';src: url('/static/fonts/geist/GeistMono-Regular.woff2') format('woff2'); font-weight: 400; }
+  @font-face { font-family: 'Geist Mono Medium'; src: url('/static/fonts/geist/GeistMono-Medium.woff2')  format('woff2'); font-weight: 500; }
+
+  body {
+    background-color: #ffffff;
+    background-image: url('/static/assets/bg.png');
+    background-repeat: no-repeat;
+    background-position: top center;
+    background-size: 100% auto;
+  }
+  .font-geist-light         { font-family: 'Geist Light', sans-serif; font-weight: 300; }
+  .font-geist-regular       { font-family: 'Geist Regular', sans-serif; font-weight: 400; }
+  .font-geist-medium        { font-family: 'Geist Medium', sans-serif; font-weight: 500; }
+  .font-geist-halbfett      { font-family: 'Geist Halbfett', sans-serif; font-weight: 600; }
+  .font-geist-fett          { font-family: 'Geist Fett', sans-serif; font-weight: 700; }
+  .font-geist-mono-regular  { font-family: 'Geist Mono Regular', monospace; font-weight: 400; }
+  .font-geist-mono-medium   { font-family: 'Geist Mono Medium', monospace; font-weight: 500; }
+</style>
+</head>
+
+<body class="min-h-screen flex flex-col items-center justify-between font-sans relative">
+
+  <!-- Logo top-left -->
+  <div class="absolute top-6 left-6 sm:top-8 sm:left-8">
+    <a href="/" aria-label="Back to home"><img src="/static/assets/isartab_logo.png" alt="Isartab" class="h-8 sm:h-10 object-contain" /></a>
+  </div>
+
+  <!-- Header: fixed "Done :)" — no per-participant format here, that
+       lookup was flaky when /me wasn't yet available. -->
+  <div class="w-full flex flex-col items-center mt-32 sm:mt-28 px-4 text-center select-none">
+    <h1 class="font-geist-fett text-7xl px-2 sm:text-7xl text-transparent bg-clip-text bg-gradient-to-b from-[#191919] to-[#616161] pb-1 leading-none tracking-tighter">
+      Done :)
+    </h1>
+    <div class="font-geist-regular text-xs sm:text-sm text-[#616161] tracking-tight">
+      <span id="countdown">&nbsp;</span>
+      <span id="modify-suffix">to register or
+        <a id="modify-link" href="#" class="underline decoration-dotted">modify</a>
+      </span>
+    </div>
+  </div>
+
+  <!-- Middle: count + dcm watermark -->
+  <div class="flex flex-col items-center mb-12 select-none">
+    <span class="font-geist-regular italic text-[#ddd] text-sm tracking-tight mb-3">
+      <span id="count">…</span> participants have registered so far…
+    </span>
+    <img src="/static/assets/dcm.png" alt="Debattierclub München" class="h-32 sm:h-40 object-contain opacity-10" />
+  </div>
+
+  <!-- Footer: event code card with QR + Share -->
+  <div class="w-full flex flex-col items-center mb-6 px-4">
+
+    <div class="flex items-center justify-center w-full mb-6">
+      <div class="bg-[#111] border-[2px] border-[#1B1B1B] w-full max-w-[420px] rounded-[20px] shadow-lg flex items-center justify-between p-1.5 select-none">
+        <div class="flex flex-col items-start justify-center flex-1 min-w-0 pl-3">
+          <span class="text-[12px] text-[#777] font-geist-light tracking-wider">Event Code</span>
+          <span id="event-code-display"
+                class="block text-[22px] font-geist-mono-regular text-[#ddd] leading-none mb-0.5 whitespace-nowrap overflow-hidden w-full"
+                style="-webkit-mask-image: linear-gradient(to right, black 65%, transparent 95%); mask-image: linear-gradient(to right, black 65%, transparent 95%);"
+                >#—</span>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button id="qr-btn"
+            class="w-12 h-12 flex items-center justify-center bg-[#333] hover:bg-[#666] active:scale-95 text-white rounded-xl transition-all focus:outline-none"
+            aria-label="Show QR code for registration link">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 stroke-white fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <path d="M14 14h2v2h-2z"/><path d="M18 18h3v3h-3z"/>
+              <path d="M14 18v3h2v-3z"/><path d="M18 14h3v2h-3z"/>
+            </svg>
+          </button>
+          <button id="share-btn"
+            class="w-20 h-12 flex items-center justify-center bg-[#333] hover:bg-[#666] active:scale-95 text-white rounded-xl transition-all focus:outline-none"
+            aria-label="Share registration link">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 stroke-white fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center flex flex-col gap-1">
+      <div class="text-[#cccccc] text-sm">
+        <a href="/legal#impressum" class="hover:text-gray-400 transition-colors">Impressum</a> -
+        <a href="/legal#datenschutz" class="hover:text-gray-400 transition-colors">Datenschutz</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR modal -->
+  <div id="qr-modal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-4"
+       role="dialog" aria-modal="true" aria-label="QR code">
+    <div class="bg-white rounded-[30px] p-6 max-w-sm w-full flex flex-col items-center gap-4">
+      <h3 class="font-geist-halbfett text-lg text-[#191919]">Scan to register</h3>
+      <div id="qr-img" class="w-64 h-64 rounded-[14px] flex items-center justify-center overflow-hidden"></div>
+      <code id="qr-url" class="text-xs text-[#616161] font-geist-mono-regular text-center break-all"></code>
+      <button id="qr-close" class="font-geist-mono-medium tracking-[0.2em] text-[#1B1B1B]/60 hover:text-[#1B1B1B] uppercase text-sm py-1">
+        close
+      </button>
+    </div>
+  </div>
+
+  <script src="/static/vendor/qrcode.min.js"></script>
+  <script src="/static/js/waiting.js" defer></script>
+</body>
+</html>

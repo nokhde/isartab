@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <title>Isartab</title>
+<script src="/static/vendor/tailwind.js"></script>
+<style>
+  @font-face {
+    font-family: 'Geist Mono Medium';
+    src: url('/static/fonts/geist/GeistMono-Medium.woff2') format('woff2');
+    font-weight: 500; font-style: normal;
+  }
+  body {
+    background-color: #ffffff;
+    background-image: url('/static/assets/bg.png');
+    background-repeat: no-repeat;
+    background-position: top center;
+    background-size: 100% auto;
+  }
+  .font-geist-mono-medium { font-family: 'Geist Mono Medium', monospace; font-weight: 500; }
+
+  /* Shake-on-error feedback for the code input. */
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-6px); }
+    40%, 80% { transform: translateX( 6px); }
+  }
+  .animate-shake { animation: shake .35s ease-in-out; }
+  .border-error  { border-color: #d33 !important; }
+</style>
+</head>
+
+<body class="min-h-screen flex flex-col items-center justify-between font-sans">
+
+  <div class="w-full flex justify-center mt-20 sm:mt-28 px-4">
+    <img src="/static/assets/isartab_logo.png" alt="Isartab" class="h-12 sm:h-16 object-contain" />
+  </div>
+
+  <div class="flex-grow flex items-center justify-center w-full px-4">
+    <form id="code-form" class="flex flex-col items-center gap-3" autocomplete="off">
+      <input
+        id="code-input"
+        type="text"
+        inputmode="numeric"
+        pattern="[0-9]{9}"
+        maxlength="11"
+        enterkeyhint="go"
+        placeholder="enter code"
+        aria-label="Event code"
+        class="bg-[#5B5B5B] border-[4px] border-[#1B1B1B] text-[#FFFFFF] placeholder-[#FFFFFF]/60 font-geist-mono-medium text-lg py-2 w-80 sm:w-[380px] rounded-[15px] shadow-lg tracking-wider text-center focus:outline-none transition-colors" />
+      <!-- Visible only on mobile: not every soft keyboard exposes a usable
+           "go" key, so give touch users an explicit submit. -->
+      <button type="submit"
+        class="sm:hidden font-geist-mono-halbfett text-sm tracking-[0.2em] text-[#1B1B1B]/60 hover:text-[#1B1B1B] uppercase border-none bg-transparent select-none py-1">
+        join →
+      </button>
+    </form>
+  </div>
+
+  <div class="w-full flex flex-col items-center mb-6 px-4">
+    <div class="mb-12">
+      <img src="/static/assets/dcm.png" alt="Debattierclub München" class="h-32 sm:h-40 object-contain opacity-10" />
+    </div>
+
+    <div class="text-center flex flex-col gap-1">
+      <form action="/events" method="post" class="contents">
+        <button type="submit"
+          class="text-[#cccccc] hover:text-gray-400 transition-colors text-sm bg-transparent border-none cursor-pointer p-0 font-sans">
+          or create new
+        </button>
+      </form>
+      <div class="text-[#cccccc] text-sm">
+        <a href="/legal#impressum" class="hover:text-gray-400 transition-colors">Impressum</a> -
+        <a href="/legal#datenschutz" class="hover:text-gray-400 transition-colors">Datenschutz</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const form = document.getElementById('code-form');
+      const input = document.getElementById('code-input');
+
+      // Strip leading '#' as the user types (people often copy "#123456789").
+      input.addEventListener('input', () => {
+        let v = input.value;
+        const cleaned = v.replace(/[^0-9]/g, '').slice(0, 9);
+        if (cleaned !== v) input.value = cleaned;
+        input.classList.remove('border-error');
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const code = input.value.trim();
+        if (!/^\d{9}$/.test(code)) {
+          fail();
+          return;
+        }
+        // Sanity check: does the event exist?
+        try {
+          const r = await fetch(`/api/events/${code}/public`, { cache: 'no-store' });
+          if (!r.ok) { fail(); return; }
+        } catch (_) {
+          // Network blip — let the next page handle it.
+        }
+        window.location.assign(`/register?event=${code}`);
+      });
+
+      function fail() {
+        input.classList.add('border-error', 'animate-shake');
+        setTimeout(() => input.classList.remove('animate-shake'), 350);
+      }
+    })();
+  </script>
+</body>
+</html>

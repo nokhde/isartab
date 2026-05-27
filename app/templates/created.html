@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <title>Isartab · Event created</title>
+<script src="/static/vendor/tailwind.js"></script>
+<script src="/static/vendor/qrcode.min.js"></script>
+<style>
+  @font-face { font-family: 'Geist Light';       src: url('/static/fonts/geist/Geist-Light.woff2')        format('woff2'); font-weight: 300; }
+  @font-face { font-family: 'Geist Regular';     src: url('/static/fonts/geist/Geist-Regular.woff2')      format('woff2'); font-weight: 400; }
+  @font-face { font-family: 'Geist Medium';      src: url('/static/fonts/geist/Geist-Medium.woff2')       format('woff2'); font-weight: 500; }
+  @font-face { font-family: 'Geist Halbfett';    src: url('/static/fonts/geist/Geist-SemiBold.woff2')     format('woff2'); font-weight: 600; }
+  @font-face { font-family: 'Geist Mono Regular';src: url('/static/fonts/geist/GeistMono-Regular.woff2')  format('woff2'); font-weight: 400; }
+  @font-face { font-family: 'Geist Mono Medium'; src: url('/static/fonts/geist/GeistMono-Medium.woff2')   format('woff2'); font-weight: 500; }
+
+  body {
+    background-color: #ffffff;
+    background-image: url('/static/assets/bg.png');
+    background-repeat: no-repeat;
+    background-position: top center;
+    background-size: 100% auto;
+  }
+  .font-geist-light         { font-family: 'Geist Light', sans-serif; font-weight: 300; }
+  .font-geist-regular       { font-family: 'Geist Regular', sans-serif; font-weight: 400; }
+  .font-geist-medium        { font-family: 'Geist Medium', sans-serif; font-weight: 500; }
+  .font-geist-halbfett      { font-family: 'Geist Halbfett', sans-serif; font-weight: 600; }
+  .font-geist-mono-regular  { font-family: 'Geist Mono Regular', monospace; font-weight: 400; }
+  .font-geist-mono-medium   { font-family: 'Geist Mono Medium', monospace; font-weight: 500; }
+</style>
+</head>
+
+<body class="min-h-screen flex flex-col items-center justify-between font-sans relative">
+
+  <!-- Logo top-left -->
+  <div class="absolute top-6 left-6 sm:top-8 sm:left-8">
+    <a href="/" aria-label="Back to home"><img src="/static/assets/isartab_logo.png" alt="Isartab" class="h-8 sm:h-10 object-contain" /></a>
+  </div>
+
+  <!-- Header: big event code + subtitle -->
+  <div class="w-full flex flex-col items-center mt-32 sm:mt-28 px-4 text-center select-none">
+    <h1 class="font-geist-halbfett text-5xl sm:text-5xl px-2 text-transparent bg-clip-text bg-gradient-to-b from-[#191919] to-[#616161] pb-1 leading-none tracking-tight">
+      #{{ event_code }}
+    </h1>
+    <div class="font-geist-regular text-xs sm:text-sm text-[#616161] tracking-tight mt-1">
+      new event created successfully
+    </div>
+  </div>
+
+  <!-- DCM watermark -->
+  <div class="flex flex-col items-center mb-12 select-none">
+    <img src="/static/assets/dcm.png" alt="Debattierclub München" class="h-32 sm:h-40 object-contain opacity-10" />
+  </div>
+
+  <!-- Footer with two cards -->
+  <div class="w-full flex flex-col items-center mb-6 px-4">
+
+    <!-- Event Code card (dark) -->
+    <div class="flex items-center justify-center w-full mb-2">
+      <div class="bg-[#111] border-[2px] border-[#1B1B1B] w-full max-w-[420px] rounded-[20px] shadow-lg flex items-center justify-between p-1.5 select-none">
+        <div class="flex flex-col items-start justify-center flex-1 min-w-0 pl-3">
+          <span class="text-[12px] text-[#777] font-geist-light tracking-wider">Event Code</span>
+          <span id="participant-url-display"
+                class="block text-[22px] font-geist-mono-regular text-[#ddd] leading-none mb-0.5 whitespace-nowrap overflow-hidden w-full"
+                style="-webkit-mask-image: linear-gradient(to right, black 65%, transparent 95%); mask-image: linear-gradient(to right, black 65%, transparent 95%);"
+                >#{{ event_code }}</span>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button id="qr-btn"
+            class="w-12 h-12 flex items-center justify-center bg-[#333] hover:bg-[#666] active:scale-95 text-white rounded-xl transition-all focus:outline-none"
+            aria-label="Show QR code">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 stroke-white fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <path d="M14 14h2v2h-2z"/><path d="M18 18h3v3h-3z"/>
+              <path d="M14 18v3h2v-3z"/><path d="M18 14h3v2h-3z"/>
+            </svg>
+          </button>
+          <button id="copy-participant-btn"
+            class="w-20 h-12 flex items-center justify-center bg-[#333] hover:bg-[#666] active:scale-95 text-white rounded-xl transition-all focus:outline-none"
+            aria-label="Copy participant link">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 stroke-white fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Link card (light) -->
+    <div class="flex items-center justify-center w-full mb-6">
+      <div class="bg-black/5 w-full max-w-[420px] rounded-[20px] flex items-center justify-between p-1.5 select-none">
+        <div class="flex flex-col items-start justify-center flex-1 min-w-0 pl-3">
+          <span class="text-[12px] text-black/60 font-geist-light tracking-wider">Link to Admin-Panel</span>
+          <span id="admin-url-display"
+                class="block text-[18px] font-geist-mono-regular text-[#191919] leading-none mb-0.5 whitespace-nowrap overflow-hidden w-full"
+                style="-webkit-mask-image: linear-gradient(to right, black 60%, transparent 95%); mask-image: linear-gradient(to right, black 60%, transparent 95%);"
+                ></span>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button id="copy-admin-btn"
+            class="w-20 h-12 flex items-center justify-center bg-black/10 hover:bg-black/20 active:scale-95 text-black rounded-xl transition-all focus:outline-none"
+            aria-label="Copy admin link">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 stroke-[#777] fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Continue → admin panel -->
+    <a id="go-admin" href="/admin/{{ admin_token }}"
+       class="text-[#777] hover:text-[#333] transition-colors text-sm font-geist-regular mb-1">
+       open admin panel →
+    </a>
+
+    <div class="text-center flex flex-col gap-1">
+      <div class="text-[#cccccc] text-sm">
+        <a href="/legal#impressum" class="hover:text-gray-400 transition-colors">Impressum</a> -
+        <a href="/legal#datenschutz" class="hover:text-gray-400 transition-colors">Datenschutz</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR modal -->
+  <div id="qr-modal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-4"
+       role="dialog" aria-modal="true" aria-label="QR code">
+    <div class="bg-white rounded-[30px] p-6 max-w-sm w-full flex flex-col items-center gap-4">
+      <h3 class="font-geist-halbfett text-lg text-[#191919]">Scan to register</h3>
+      <div id="qr-img" class="w-64 h-64 rounded-[14px] flex items-center justify-center overflow-hidden"></div>
+      <code id="qr-url" class="text-xs text-[#616161] font-geist-mono-regular text-center break-all"></code>
+      <button id="qr-close" class="font-geist-mono-medium tracking-[0.2em] text-[#1B1B1B]/60 hover:text-[#1B1B1B] uppercase text-sm py-1">
+        close
+      </button>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const eventCode = "{{ event_code }}";
+      const adminToken = "{{ admin_token }}";
+
+      const participantUrl = `${location.origin}/register?event=${eventCode}`;
+      const adminUrl       = `${location.origin}/admin/${adminToken}`;
+
+      document.getElementById("admin-url-display").textContent = adminUrl;
+
+      // Copy helpers — quick visual confirmation via swap of the button SVG.
+      function flash(btn) {
+        btn.classList.add("ring-2", "ring-emerald-400");
+        setTimeout(() => btn.classList.remove("ring-2", "ring-emerald-400"), 900);
+      }
+      function copyFallback(text) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.top = "0";
+        ta.style.left = "0";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        let ok = false;
+        try { ok = document.execCommand("copy"); } catch (_) {}
+        document.body.removeChild(ta);
+        return ok;
+      }
+      async function copy(text, btn) {
+        let ok = false;
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            ok = true;
+          }
+        } catch (_) {}
+        if (!ok) ok = copyFallback(text);
+        if (ok) flash(btn);
+      }
+      document.getElementById("copy-participant-btn")
+        .addEventListener("click", (e) => copy(participantUrl, e.currentTarget));
+      document.getElementById("copy-admin-btn")
+        .addEventListener("click", (e) => copy(adminUrl, e.currentTarget));
+
+      // QR modal
+      const modal = document.getElementById("qr-modal");
+      const qrImg = document.getElementById("qr-img");
+      const qrUrl = document.getElementById("qr-url");
+      function openQr() {
+        qrImg.innerHTML = "";
+        new QRCode(qrImg, {
+          text: participantUrl, width: 240, height: 240,
+          colorDark: "#191919", colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M,
+        });
+        qrUrl.textContent = participantUrl;
+        modal.classList.remove("hidden");
+      }
+      function closeQr() { modal.classList.add("hidden"); }
+      document.getElementById("qr-btn").addEventListener("click", openQr);
+      document.getElementById("qr-close").addEventListener("click", closeQr);
+      modal.addEventListener("click", (e) => { if (e.target === modal) closeQr(); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeQr(); });
+    })();
+  </script>
+</body>
+</html>

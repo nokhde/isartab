@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <title>Isartab · Register</title>
+<script src="/static/vendor/tailwind.js"></script>
+<style>
+  @font-face {
+    font-family: 'Geist Mono Medium';
+    src: url('/static/fonts/geist/GeistMono-Medium.woff2') format('woff2');
+    font-weight: 500; font-style: normal;
+  }
+  @font-face {
+    font-family: 'Geist Halbfett';
+    src: url('/static/fonts/geist/Geist-SemiBold.woff2') format('woff2');
+    font-weight: 600; font-style: normal;
+  }
+  @font-face {
+    font-family: 'Geist Medium';
+    src: url('/static/fonts/geist/Geist-Medium.woff2') format('woff2');
+    font-weight: 500; font-style: normal;
+  }
+  @font-face {
+    font-family: 'Geist Mono Halbfett';
+    src: url('/static/fonts/geist/GeistMono-SemiBold.woff2') format('woff2');
+    font-weight: 600; font-style: normal;
+  }
+  @font-face {
+    font-family: 'Geist Mono Regular';
+    src: url('/static/fonts/geist/GeistMono-Regular.woff2') format('woff2');
+    font-weight: 400; font-style: normal;
+  }
+  @font-face {
+    font-family: 'Geist Mono Bold';
+    src: url('/static/fonts/geist/GeistMono-Bold.woff2') format('woff2');
+    font-weight: 700; font-style: normal;
+  }
+
+  body {
+    background-color: #ffffff;
+    background-image: url('/static/assets/bg.png');
+    background-repeat: no-repeat;
+    background-position: top center;
+    background-size: 100% auto;
+  }
+
+  .font-geist-mono-medium { font-family: 'Geist Mono Medium', monospace; font-weight: 500; }
+  .font-geist-halbfett    { font-family: 'Geist Halbfett', sans-serif; font-weight: 600; }
+  .font-geist-medium      { font-family: 'Geist Medium', sans-serif; font-weight: 500; }
+  .font-geist-mono-halbfett { font-family: 'Geist Mono Halbfett', monospace; font-weight: 600; }
+  .font-geist-mono-regular  { font-family: 'Geist Mono Regular', monospace; font-weight: 400; }
+  .font-geist-mono-bold     { font-family: 'Geist Mono Bold', monospace; font-weight: 700; }
+</style>
+</head>
+
+<body class="min-h-screen flex flex-col items-center justify-between font-sans relative">
+
+  <!-- Logo top-left -->
+  <div class="absolute top-6 left-6 sm:top-8 sm:left-8">
+    <a href="/" aria-label="Back to home"><img src="/static/assets/isartab_logo.png" alt="Isartab" class="h-8 sm:h-10 object-contain" /></a>
+  </div>
+
+  <!-- Header -->
+  <div class="w-full flex flex-col items-center mt-20 sm:mt-28 px-4 text-center select-none">
+    <div class="font-geist-mono-medium text-sm sm:text-sm opacity-50 text-[#191919] tracking-tight pt-2"
+         id="event-code">#—</div>
+    <h1 class="font-geist-halbfett text-6xl sm:text-7xl text-transparent bg-clip-text bg-gradient-to-b from-[#191919] to-[#616161] pb-1 leading-none tracking-tighter">
+      Register
+    </h1>
+    <div class="font-geist-medium text-xs sm:text-sm text-[#616161] tracking-tight" id="countdown">
+      &nbsp;
+    </div>
+  </div>
+
+  <!-- Form -->
+  <div class="flex-grow flex flex-col items-center justify-center w-full px-4 gap-6 my-8">
+    <form id="form" class="w-80 sm:w-[380px] flex flex-col gap-2" novalidate>
+
+      <!-- Name -->
+      <div class="w-full">
+        <input
+          name="name"
+          type="text"
+          required
+          autocomplete="off"
+          maxlength="12"
+          placeholder="your name"
+          class="bg-black/[0.07] text-[#1B1B1B] font-geist-mono-medium text-base placeholder-black/40 h-14 w-full rounded-[15px] tracking-wider text-center focus:outline-none focus:bg-black/[0.1] transition-colors border-0" />
+      </div>
+
+      <!-- Language: EN / DE (multi-select; both = DE/EN) -->
+      <div class="flex flex-row gap-2 w-full row-1-3" data-field="language">
+        <button type="button"
+          class="flex-1 rounded-[15px] h-14 transition-all duration-300 bg-black/[0.07] text-black/40 font-geist-mono-regular text-base focus:outline-none"
+          data-value="EN" data-selected="false">English</button>
+        <button type="button"
+          class="flex-1 rounded-[15px] h-14 transition-all duration-300 bg-black/[0.07] text-black/40 font-geist-mono-regular text-base focus:outline-none"
+          data-value="DE" data-selected="false">Deutsch</button>
+      </div>
+
+      <!-- Format: OPD / BP (multi-select; both = egal) -->
+      <div class="flex flex-row gap-2 w-full row-1-3" data-field="format">
+        <button type="button"
+          class="flex-1 rounded-[15px] h-14 transition-all duration-300 bg-black/[0.07] text-black/40 font-geist-mono-regular text-base focus:outline-none"
+          data-value="OPD" data-selected="false">OPD</button>
+        <button type="button"
+          class="flex-1 rounded-[15px] h-14 transition-all duration-300 bg-black/[0.07] text-black/40 font-geist-mono-regular text-base focus:outline-none"
+          data-value="BP" data-selected="false">BP</button>
+      </div>
+
+      <!-- Role: Speaker / Judge (multi-select; both = SJ) -->
+      <div class="flex flex-row gap-2 w-full row-1-3" data-field="role">
+        <button type="button"
+          class="flex-1 rounded-[15px] h-14 transition-all duration-300 bg-black/[0.07] text-black/40 font-geist-mono-regular text-base focus:outline-none"
+          data-value="S" data-selected="false">Speaker</button>
+        <button type="button"
+          class="flex-1 rounded-[15px] h-14 transition-all duration-300 bg-black/[0.07] text-black/40 font-geist-mono-regular text-base focus:outline-none"
+          data-value="J" data-selected="false">Judge</button>
+      </div>
+
+      <!-- Experience slider (single select) -->
+      <div class="relative flex w-full bg-black/[0.07] rounded-[15px] h-14 p-1 items-center select-none"
+           id="level-slider">
+        <div id="slider-highlight"
+             class="absolute top-1 bottom-1 bg-[#FFD200] rounded-[12px] transition-all duration-300 pointer-events-none"
+             style="width: calc((100% - 8px) / 3); left: 4px; opacity: 0;"></div>
+
+        <button type="button"
+          class="relative z-10 flex-1 h-full flex items-center justify-center text-black/40 font-geist-mono-regular text-xs sm:text-sm focus:outline-none transition-colors duration-300"
+          data-value="1" data-index="0">Beginner</button>
+        <button type="button"
+          class="relative z-10 flex-1 h-full flex items-center justify-center text-black/40 font-geist-mono-regular text-xs sm:text-sm focus:outline-none transition-colors duration-300"
+          data-value="2" data-index="1">Intermediate</button>
+        <button type="button"
+          class="relative z-10 flex-1 h-full flex items-center justify-center text-black/40 font-geist-mono-regular text-xs sm:text-sm focus:outline-none transition-colors duration-300"
+          data-value="3" data-index="2">Advanced</button>
+      </div>
+
+      <!-- Urgent request -->
+      <div class="w-full">
+        <input
+          name="special_request"
+          type="text"
+          maxlength="60"
+          placeholder="urgent request (e.g. teammates)"
+          class="bg-black/[0.07] text-[#1B1B1B] placeholder-black/40 placeholder:text-[13px] font-geist-mono-medium text-base h-14 w-full rounded-[15px] tracking-wider text-center focus:outline-none focus:bg-black/[0.1] transition-colors border-0" />
+      </div>
+
+      <!-- Forced to judge last time -->
+      <div class="flex flex-row items-center gap-3 w-full">
+        <div class="font-geist-mono-regular text-sm text-[#1B1B1B] leading-tight flex-1">
+          <div>I was forced to judge</div>
+          <div>last time</div>
+        </div>
+        <div class="relative flex bg-black/[0.07] rounded-[15px] h-14 p-1 items-center select-none w-40"
+             id="forced-judge-slider" data-field="forced_judge_last">
+          <div id="forced-judge-highlight"
+               class="absolute top-1 bottom-1 bg-[#FFD200] rounded-[12px] transition-all duration-300 pointer-events-none"
+               style="width: calc((100% - 8px) / 2); left: 4px; opacity: 0;"></div>
+          <button type="button"
+            class="relative z-10 flex-1 h-full flex items-center justify-center text-black/40 font-geist-mono-regular text-xs sm:text-sm focus:outline-none transition-colors duration-300"
+            data-value="0" data-index="0">No</button>
+          <button type="button"
+            class="relative z-10 flex-1 h-full flex items-center justify-center text-black/40 font-geist-mono-regular text-xs sm:text-sm focus:outline-none transition-colors duration-300"
+            data-value="1" data-index="1">Yes</button>
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <button
+        id="submit"
+        type="submit"
+        class="font-geist-mono-halbfett text-base tracking-[0.2em] text-[#1B1B1B]/50 hover:text-[#1B1B1B]/75 transition-colors uppercase focus:outline-none border-none bg-transparent select-none py-2 mt-8">
+        Submit
+      </button>
+
+      <p id="status" role="status" aria-live="polite"
+         class="font-geist-mono-regular text-xs text-[#616161] text-center min-h-[1.2em]"></p>
+    </form>
+  </div>
+
+  <!-- Footer -->
+  <div class="w-full flex flex-col items-center mb-6 px-4">
+    <div class="text-center flex flex-col gap-1">
+      <div class="text-[#cccccc] text-sm">
+        <a href="/legal#impressum" class="hover:text-gray-400 transition-colors">Impressum</a> -
+        <a href="/legal#datenschutz" class="hover:text-gray-400 transition-colors">Datenschutz</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/register.js" defer></script>
+</body>
+</html>

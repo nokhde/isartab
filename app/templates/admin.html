@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <title>Admin · Debate Allocator</title>
+<link rel="stylesheet" href="/static/css/admin.css">
+<script src="/static/vendor/sortable-1.15.2.min.js" defer></script>
+<script src="/static/js/admin.js" defer></script>
+<script src="/static/vendor/alpine-3.13.5.min.js" defer></script>
+</head>
+<body>
+<div
+  id="app"
+  x-data="adminPanel('{{ admin_token }}')"
+  x-init="boot()"
+  :class="{ 'is-loading': loading }"
+  @keydown.escape.window="onEscape()"
+>
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar__left">
+      <span class="topbar__label">Event</span>
+      <code x-text="event ? event.code : '—'"></code>
+      <span class="topbar__status" x-text="event ? event.status : '…'"></span>
+    </div>
+
+    <div class="topbar__deadline" x-show="event">
+      <label>
+        Deadline
+        <input
+          type="datetime-local"
+          x-model="deadlineInput"
+          @change="saveDeadline()"
+          :disabled="!canEditMeta()"
+        >
+      </label>
+      <span class="topbar__countdown" x-text="countdown()"></span>
+    </div>
+
+    <div class="topbar__actions">
+      <span class="actions-group">
+
+        <!-- Setup: seed demo participants (open only) -->
+        <button class="tb-btn"
+                @click="seedDemo()"
+                :disabled="!event || event.status !== 'open'"
+                title="Insert 30 demo participants for testing">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <line x1="19" y1="8" x2="19" y2="14"/>
+            <line x1="22" y1="11" x2="16" y2="11"/>
+          </svg>
+          <span>+30 demo</span>
+        </button>
+
+        <!-- Lifecycle: reopen / close registration -->
+        <button class="tb-btn"
+                @click="post('reopen-registration')"
+                :disabled="!event || event.status !== 'closed'"
+                title="Reopen registration to participants">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1 4 1 10 7 10"/>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+          </svg>
+          <span>Reopen</span>
+        </button>
+        <button class="tb-btn"
+                @click="closeRegistration()"
+                :disabled="!event || event.status !== 'open'"
+                title="Close registration — no more sign-ups, then auto-propose rooms">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <span>Close</span>
+        </button>
+
+        <span class="tb-divider" aria-hidden="true"></span>
+
+        <!-- Build layout -->
+        <button class="tb-btn"
+                @click="post('propose-rooms')"
+                :disabled="!event || event.status !== 'closed' || participants.length === 0"
+                title="Solver proposes rooms based on participant prefs">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3"  width="7" height="7" rx="1"/>
+            <rect x="14" y="3"  width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <span>Propose Rooms</span>
+        </button>
+        <button class="tb-btn"
+                @click="openAddRoom()"
+                :disabled="!event || event.status !== 'closed'"
+                title="Add a room manually">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <line x1="12" y1="8" x2="12" y2="16"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          <span>Add Room</span>
+        </button>
+        <button class="tb-btn tb-btn--danger"
+                @click="confirmClearUnlocked()"
+                :disabled="!event || event.status !== 'closed' || rooms.length === 0"
+                title="Vacate every slot that isn't locked. Locked slots stay.">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+          <span>Clear unlocked</span>
+        </button>
+
+        <span class="tb-divider" aria-hidden="true"></span>
+
+        <!-- Magic fill — the special one ✨ -->
+        <button class="tb-btn tb-btn--magic"
+                @click="post('magic-fill')"
+                :disabled="!event || event.status !== 'closed' || rooms.length === 0"
+                title="Auto-fill remaining unlocked slots from leftover participants">
+          <span class="tb-btn__sparkles" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2 L13.4 8.6 L20 10 L13.4 11.4 L12 18 L10.6 11.4 L4 10 L10.6 8.6 Z"/>
+              <path d="M19 14 L19.6 16.4 L22 17 L19.6 17.6 L19 20 L18.4 17.6 L16 17 L18.4 16.4 Z"/>
+              <path d="M5 16 L5.5 17.9 L7.4 18.4 L5.5 18.9 L5 20.8 L4.5 18.9 L2.6 18.4 L4.5 17.9 Z"/>
+            </svg>
+          </span>
+          <span>Magic Fill</span>
+        </button>
+
+        <!-- Finalize -->
+        <button class="tb-btn tb-btn--primary"
+                @click="confirmPublish()"
+                :disabled="!event || event.status !== 'closed' || rooms.length === 0"
+                title="Publish — participants see their rooms">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2"  x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+          <span>Publish</span>
+        </button>
+
+        <!-- Read-only after publish -->
+        <button class="tb-btn"
+                @click="event && window.open(`/rooms?event=${event.code}`, '_blank')"
+                :disabled="!event || event.status !== 'published'"
+                title="Open the participant-facing room view">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+          <span>Public view</span>
+        </button>
+
+      </span>
+    </div>
+  </header>
+
+  <!-- Participant link bar — always visible so the tabmaster can read,
+       copy, or project the URL via any channel. -->
+  <div class="link-bar" x-show="event" x-cloak>
+    <span class="link-bar__label">Send participants to:</span>
+    <a class="link-bar__url"
+       :href="participantUrl()"
+       x-text="participantUrl()"
+       target="_blank" rel="noopener"></a>
+    <button class="small" @click="copyParticipantUrl()"
+            x-text="copyParticipantState"
+            aria-label="Copy participant registration URL"></button>
+    <button class="small" @click="share()"
+            aria-label="Share participant registration URL">Share…</button>
+  </div>
+
+  <!-- Error banner -->
+  <div class="error" x-show="errorMsg" x-text="errorMsg" @click="errorMsg = null"></div>
+
+  <!-- First-visit warning: this URL is the only key to the event. -->
+  <div class="modal-backdrop" x-show="firstVisit" x-cloak @click.self="dismissFirstVisit()">
+    <div class="modal" role="dialog" aria-labelledby="m-save-title" aria-modal="true">
+      <h2 id="m-save-title">Two links you need</h2>
+
+      <h3 class="url-block__h">🔐 Admin URL — keep this private</h3>
+      <p class="muted">
+        The <strong>only</strong> way back into this panel. Bookmark it
+        now or copy it somewhere safe. If you lose it, the event is
+        gone — there's no recovery.
+      </p>
+      <code class="url-box" x-text="adminUrl()"></code>
+      <div class="modal__actions modal__actions--inline">
+        <button @click="copyAdminUrl()" x-text="copyState"></button>
+      </div>
+
+      <h3 class="url-block__h">📣 Participant URL — share this</h3>
+      <p class="muted">
+        Anyone with this link can register. Paste it into your group
+        chat, email, projector, anywhere.
+      </p>
+      <code class="url-box" x-text="participantUrl()"></code>
+      <div class="modal__actions modal__actions--inline">
+        <button @click="copyParticipantUrl()" x-text="copyParticipantState"></button>
+      </div>
+
+      <div class="modal__actions">
+        <button class="primary" @click="dismissFirstVisit()">I saved both</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Room dialog -->
+  <div class="modal-backdrop" x-show="addRoomOpen" x-cloak @click.self="addRoomOpen = false">
+    <div class="modal" role="dialog" aria-labelledby="m-room-title" aria-modal="true">
+      <h2 id="m-room-title">Add a room</h2>
+      <form @submit.prevent="submitAddRoom()">
+        <fieldset>
+          <legend>Format</legend>
+          <label class="radio"><input type="radio" name="format" value="BP"  x-model="addRoomFormat"> BP</label>
+          <label class="radio"><input type="radio" name="format" value="OPD" x-model="addRoomFormat"> OPD</label>
+        </fieldset>
+        <fieldset>
+          <legend>Language</legend>
+          <label class="radio"><input type="radio" name="language" value="EN" x-model="addRoomLanguage"> English</label>
+          <label class="radio"><input type="radio" name="language" value="DE" x-model="addRoomLanguage"> Deutsch</label>
+        </fieldset>
+        <div class="modal__actions">
+          <button type="button" @click="addRoomOpen = false">Cancel</button>
+          <button type="submit" class="primary">Add room</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Loading overlay (Propose Rooms / Magic Fill can take up to 30s) -->
+  <div class="overlay" x-show="loading" x-cloak>
+    <div class="spinner"></div>
+    <p x-text="loadingMsg || 'Working…'"></p>
+  </div>
+
+  <main class="layout">
+    <!-- Participants -->
+    <aside class="participants">
+      <h2>Participants <small x-text="`(${participants.length})`"></small></h2>
+      <ul class="plist" id="plist">
+        <template x-for="p in participants" :key="p.id">
+          <li
+            class="participant"
+            :class="{ 'is-assigned': assignedIds.has(p.id) }"
+            :data-participant-id="p.id"
+          >
+            <div class="participant__head">
+              <div class="participant__name" x-text="p.name"></div>
+              <button class="icon clear participant__remove"
+                      @click.stop="deleteParticipant(p)"
+                      aria-label="Delete participant"
+                      title="Delete participant">×</button>
+            </div>
+            <div class="participant__meta">
+              <span x-text="langFlag(p.language)"></span>
+              <span x-text="p.format"></span>
+              <span x-text="roleLabel(p.role)"></span>
+              <span x-text="`exp ${p.experience}`"></span>
+            </div>
+            <div class="participant__req" x-show="p.special_request"
+                 x-text="p.special_request"></div>
+            <div class="participant__req" x-show="p.forced_judge_last">
+              was forced to judge last time
+            </div>
+          </li>
+        </template>
+        <li class="empty" x-show="participants.length === 0">No participants yet.</li>
+      </ul>
+    </aside>
+
+    <!-- Rooms -->
+    <section class="rooms">
+      <template x-if="!event || event.status === 'open'">
+        <div class="placeholder">
+          <p>Waiting for participants…</p>
+          <p class="muted">When you're ready, click <strong>Close Registration</strong>.</p>
+        </div>
+      </template>
+
+      <template x-if="event && event.status !== 'open' && rooms.length === 0">
+        <div class="placeholder">
+          <p>No rooms yet.</p>
+          <p class="muted">Click <strong>Propose Rooms</strong> for an automatic
+          layout, or <strong>+ Add Room</strong> to build manually.</p>
+        </div>
+      </template>
+
+      <!-- Auto-proposal explanation card (after Close Registration) -->
+      <div class="proposal-card" x-show="showProposalCard()" x-cloak>
+        <h3>Suggested layout</h3>
+        <p>
+          Auto-proposed
+          <strong><span x-text="rooms.length"></span>
+                  room<span x-show="rooms.length !== 1">s</span></strong>
+          for <strong><span x-text="participants.length"></span></strong> participants:
+        </p>
+        <ul class="proposal-card__breakdown">
+          <template x-for="line in proposalBreakdown()" :key="line">
+            <li x-text="line"></li>
+          </template>
+        </ul>
+        <p class="muted">
+          The solver tried to match each participant's language, format and
+          role preferences. Drag to override, click 🔒 to pin, or hit
+          <strong>Magic Fill</strong> to redistribute leftovers. Free-speaker
+          slots in OPD rooms are empty by default — drop people in as needed.
+        </p>
+        <div class="proposal-card__actions">
+          <button class="primary" @click="dismissProposal()">Got it</button>
+          <button class="danger" @click="clearAllRooms()">Discard, I'll add manually</button>
+        </div>
+      </div>
+
+      <template x-for="room in rooms" :key="room.room_id">
+        <article class="room">
+          <header class="room__head">
+            <template x-if="renaming !== room.room_id">
+              <h3 class="room__title">
+                <span x-text="roomLabelText(room)"></span>
+                <span class="room__sep">·</span>
+                <span x-text="room.format"></span>
+                <span class="room__sep">·</span>
+                <span class="room__lang" x-text="langFlag(room.language)"></span>
+                <button class="rename-btn"
+                        @click="startRename(room)"
+                        x-show="event.status === 'closed'"
+                        title="Rename room"
+                        aria-label="Rename room">✎</button>
+              </h3>
+            </template>
+            <template x-if="renaming === room.room_id">
+              <form class="rename-form" @submit.prevent="saveRename(room)">
+                <input type="text"
+                       x-model="renamingName"
+                       :id="`rn-${room.room_id}`"
+                       @keydown.escape.prevent="cancelRename()"
+                       maxlength="80"
+                       placeholder="e.g. Hörsaal A101">
+                <button type="submit" class="small primary">OK</button>
+                <button type="button" class="small" @click="cancelRename()">Cancel</button>
+              </form>
+            </template>
+            <button class="danger small"
+                    @click="deleteRoom(room.room_id)"
+                    x-show="event.status === 'closed' && renaming !== room.room_id">
+              Delete
+            </button>
+          </header>
+
+          <div class="room__layout"
+               :class="`room__layout--${room.format.toLowerCase()}`">
+            <template x-for="region in regionsFor(room.format)" :key="region.key">
+              <div class="region" :class="`region--${region.key}`">
+                <h4 class="region__label">
+                  <span x-text="region.label"></span>
+                  <button class="small add-judge-btn"
+                          x-show="region.key === 'judges' && event.status === 'closed'"
+                          @click="addJudgeSlot(room)"
+                          title="Add another judge slot to this room"
+                          aria-label="Add judge slot">+ Judge</button>
+                </h4>
+                <ul class="slots">
+                  <template x-for="slot in slotsInRegion(room, region)"
+                            :key="slot.slot_id">
+                    <li class="slot"
+                        :data-slot-id="slot.slot_id"
+                        :class="{
+                          'slot--filled': slot.participant,
+                          'slot--locked': slot.locked,
+                        }">
+                      <template x-if="slot.participant">
+                        <div class="slot-card"
+                             :data-participant-id="slot.participant.id"
+                             :class="{ 'slot-card--mismatch': isMismatch(slot, slot._room) }"
+                             :title="isMismatch(slot, slot._room) ? 'Language, format or role preference is not met' : ''">
+                          <div class="slot-card__head">
+                            <span class="slot-card__name"
+                                  x-text="slot.participant.name"></span>
+                            <span class="slot-card__controls">
+                              <button class="icon"
+                                      @click="toggleLock(slot)"
+                                      x-text="slot.locked ? '🔒' : '🔓'"
+                                      :aria-label="slot.locked ? 'Unlock' : 'Lock'"
+                                      :title="slot.locked ? 'Locked — magic fill skips this' : 'Click to lock'"></button>
+                              <button class="icon clear"
+                                      @click="clearSlot(slot.slot_id)"
+                                      aria-label="Unassign"
+                                      title="Unassign">×</button>
+                            </span>
+                          </div>
+                          <div class="slot-card__meta">
+                            <span x-text="langFlag(slot.participant.language)"></span>
+                            <span x-text="slot.participant.format"></span>
+                            <span x-text="roleLabel(slot.participant.role)"></span>
+                            <span x-text="`exp ${slot.participant.experience}`"></span>
+                          </div>
+                          <div class="slot-card__req"
+                               x-show="slot.participant.special_request"
+                               x-text="slot.participant.special_request"></div>
+                        </div>
+                      </template>
+                      <template x-if="!slot.participant">
+                        <div class="slot-card slot-card--empty">
+                          <div class="slot-card__name">empty</div>
+                          <div class="slot-card__meta">
+                            <span x-text="slot.subrole"></span>
+                          </div>
+                        </div>
+                      </template>
+                    </li>
+                  </template>
+                </ul>
+              </div>
+            </template>
+          </div>
+        </article>
+      </template>
+    </section>
+  </main>
+</div>
+
+<div class="small-screen-overlay" aria-hidden="false">
+  <div class="small-screen-overlay__card">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="2" y="6" width="20" height="12" rx="2"/>
+      <line x1="8" y1="22" x2="16" y2="22"/>
+      <line x1="12" y1="18" x2="12" y2="22"/>
+    </svg>
+    <h2>Please switch to a bigger screen</h2>
+    <p>The admin panel needs more room than a phone screen can give it. Open this page on a tablet or laptop to keep going.</p>
+  </div>
+</div>
+
+</body>
+</html>

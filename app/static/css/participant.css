@@ -1,0 +1,113 @@
+/* Minimal styling — Chunk 7 polishes. Mobile-first. */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  line-height: 1.4;
+}
+.muted { color: #6b6b70; }
+
+.card {
+  max-width: 540px;
+  margin: 1.25rem auto;
+  padding: 1.25rem 1.25rem 1.75rem;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.card--wide { max-width: 880px; }
+
+h1 { font-size: 1.5rem; margin: .5rem 0 .25rem; }
+h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
+
+.event-bar {
+  display: flex; align-items: center; gap: .5rem;
+  background: #1d1d1f; color: #fff;
+  padding: .5rem .75rem; border-radius: 10px;
+  font-size: .9rem;
+  margin-bottom: 1rem;
+}
+.event-bar__label { opacity: .7; }
+.event-bar code { font-family: ui-monospace, SF Mono, Menlo, monospace; letter-spacing: .05em; }
+.event-bar__share {
+  margin-left: auto;
+  background: #fff; color: #1d1d1f; border: none;
+  padding: .25rem .6rem; border-radius: 6px; cursor: pointer;
+  font: inherit;
+}
+.event-bar__status { margin-left: auto; opacity: .8; text-transform: uppercase; font-size: .75rem; letter-spacing: .08em; }
+
+/* Form */
+form { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; }
+label { display: flex; flex-direction: column; gap: .35rem; font-weight: 500; }
+fieldset { border: none; padding: 0; margin: 0; }
+fieldset legend { font-weight: 500; margin-bottom: .35rem; }
+input[type=text], textarea {
+  font: inherit; padding: .55rem .7rem;
+  border: 1px solid #d2d2d7; border-radius: 8px;
+  background: #fff;
+}
+input[type=text]:focus, textarea:focus {
+  outline: 2px solid #0071e3; outline-offset: 1px;
+}
+.radio, .checkbox {
+  flex-direction: row; align-items: center; gap: .5rem;
+  font-weight: 400;
+  padding: .35rem .15rem;
+}
+.radio input, .checkbox input { width: 1.05rem; height: 1.05rem; }
+
+button[type=submit] {
+  font: inherit; font-weight: 600;
+  background: #0071e3; color: #fff;
+  border: none; border-radius: 10px;
+  padding: .75rem 1rem; cursor: pointer;
+  transition: background .15s;
+}
+button[type=submit]:hover { background: #0058b1; }
+button[type=submit]:disabled { background: #999; cursor: progress; }
+
+.status {
+  margin: 0; padding: 0; min-height: 1.2em;
+  font-size: .9rem; color: #555;
+}
+
+/* Waiting page */
+.big-count {
+  text-align: center;
+  margin: 1.5rem 0 .5rem;
+}
+.big-count span {
+  font-size: 3rem; font-weight: 700; display: block; line-height: 1;
+}
+.big-count small { color: #6b6b70; }
+
+/* Rooms page */
+.room {
+  margin: 1rem 0;
+  border: 1px solid #ececef; border-radius: 10px;
+  padding: .75rem 1rem;
+}
+.slots { list-style: none; padding: 0; margin: .5rem 0 0; display: grid; gap: .35rem; }
+.slot {
+  display: flex; align-items: baseline; gap: .75rem;
+  padding: .25rem .5rem; border-radius: 6px;
+}
+.slot__role {
+  min-width: 9rem;
+  font-size: .8rem; color: #6b6b70;
+  text-transform: lowercase;
+  letter-spacing: .02em;
+}
+.slot__name { font-weight: 500; }
+.slot--mine { background: #fff5d6; }
+.slot--mine .slot__name strong { color: #b16800; }
+
+/* Focus-visible affordance for keyboard users. */
+button:focus-visible, a:focus-visible, input:focus-visible,
+textarea:focus-visible, select:focus-visible {
+  outline: 3px solid #0071e3;
+  outline-offset: 2px;
+}

@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <title>Isartab · Rooms</title>
+<script src="/static/vendor/tailwind.js"></script>
+<style>
+  @font-face { font-family: 'Geist Light';        src: url('/static/fonts/geist/Geist-Light.woff2')        format('woff2'); font-weight: 300; }
+  @font-face { font-family: 'Geist Regular';      src: url('/static/fonts/geist/Geist-Regular.woff2')      format('woff2'); font-weight: 400; }
+  @font-face { font-family: 'Geist Medium';       src: url('/static/fonts/geist/Geist-Medium.woff2')       format('woff2'); font-weight: 500; }
+  @font-face { font-family: 'Geist Halbfett';     src: url('/static/fonts/geist/Geist-SemiBold.woff2')     format('woff2'); font-weight: 600; }
+  @font-face { font-family: 'Geist Fett';         src: url('/static/fonts/geist/Geist-Bold.woff2')         format('woff2'); font-weight: 700; }
+  @font-face { font-family: 'Geist Mono Regular'; src: url('/static/fonts/geist/GeistMono-Regular.woff2')  format('woff2'); font-weight: 400; }
+  @font-face { font-family: 'Geist Mono Medium';  src: url('/static/fonts/geist/GeistMono-Medium.woff2')   format('woff2'); font-weight: 500; }
+  @font-face { font-family: 'Geist Mono Bold';    src: url('/static/fonts/geist/GeistMono-Bold.woff2')     format('woff2'); font-weight: 700; }
+
+  body {
+    background-color: #ffffff;
+    background-image: url('/static/assets/bg.png');
+    background-repeat: no-repeat;
+    background-position: top center;
+    background-size: 100% auto;
+  }
+  .font-geist-light         { font-family: 'Geist Light', sans-serif; font-weight: 300; }
+  .font-geist-regular       { font-family: 'Geist Regular', sans-serif; font-weight: 400; }
+  .font-geist-medium        { font-family: 'Geist Medium', sans-serif; font-weight: 500; }
+  .font-geist-halbfett      { font-family: 'Geist Halbfett', sans-serif; font-weight: 600; }
+  .font-geist-fett          { font-family: 'Geist Fett', sans-serif; font-weight: 700; }
+  .font-geist-mono-regular  { font-family: 'Geist Mono Regular', monospace; font-weight: 400; }
+  .font-geist-mono-medium   { font-family: 'Geist Mono Medium', monospace; font-weight: 500; }
+  .font-geist-mono-bold     { font-family: 'Geist Mono Bold', monospace; font-weight: 700; }
+</style>
+</head>
+
+<body class="h-[100dvh] flex flex-col items-center font-sans relative overflow-hidden">
+
+  <!-- Logo in top-left corner -->
+  <div class="absolute top-6 left-6 sm:top-8 sm:left-8 z-20">
+    <a href="/" aria-label="Back to home"><img src="/static/assets/isartab_logo.png" alt="Isartab Logo" class="h-8 sm:h-10 object-contain" /></a>
+  </div>
+
+  <!-- Centered Header Section -->
+  <div class="w-full flex flex-col items-center mt-32 sm:mt-28 px-4 text-center select-none shrink-0 z-10">
+    <h1 class="font-geist-halbfett text-5xl px-2 sm:text-5xl text-transparent bg-clip-text bg-gradient-to-b from-[#191919] to-[#616161] pb-1 leading-none tracking-tight">
+      {% if my_role_label %}{{ my_role_label }}{% else %}Rooms{% endif %}
+    </h1>
+    <div class="font-geist-regular text-xs sm:text-sm text-[#616161] tracking-tight">
+      {% if my_room_label and event_status == "published" %}
+        in {{ my_room_label }}
+      {% elif event_status == "published" %}
+        room assignments
+      {% elif event_status == "closed" %}
+        not yet published
+      {% else %}
+        registration still open
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Scrollable list of rooms.
+       The mask gradient softens both edges: small fade-in at the top, and a
+       larger fade-out at the bottom so room content disappears smoothly
+       *behind* the black event-code bar (which is absolutely positioned
+       over this same area, see footer below). The bottom transparent zone
+       roughly matches the footer's height (~140px). -->
+  <main class="flex-1 min-h-0 w-full overflow-y-auto"
+        style="-webkit-mask-image: linear-gradient(to bottom, transparent 0, black 28px, black calc(100% - 140px), transparent 100%);
+                       mask-image: linear-gradient(to bottom, transparent 0, black 28px, black calc(100% - 140px), transparent 100%);">
+    <div class="w-full px-4 pt-6 pb-44">
+      <div class="max-w-[420px] mx-auto flex flex-col gap-3">
+      {% if event_status != "published" %}
+        <p class="font-geist-regular text-sm text-[#616161] text-center mt-2">
+          The tabmaster is still working on the assignment.<br>
+          Check back in a moment, or visit
+          <a href="/waiting?event={{ event_code }}" class="underline">your waiting page</a>.
+        </p>
+      {% elif not rooms %}
+        <p class="font-geist-regular text-sm text-[#616161] text-center mt-2">
+          The event was published but no rooms exist.
+        </p>
+      {% else %}
+        {# Reusable name pill — highlighted when it's the current user. #}
+        {% macro name_pill(slot, my_pid) %}
+          {% set p = slot.participant %}
+          {% set mine = p and my_pid and p.id == my_pid %}
+          {% if p %}
+            {% if mine %}
+              <span class="inline-block self-start text-[16px] font-geist-mono-regular text-[#C76B00] bg-[#FFD200] px-1.5 py-0.5 -mx-1.5 rounded-[4px] leading-none mb-1 whitespace-nowrap overflow-hidden max-w-[calc(100%+0.75rem)]">{{ p.name }}</span>
+            {% else %}
+              <span class="block text-[16px] font-geist-mono-regular text-[#191919] leading-none mb-1 whitespace-nowrap overflow-hidden max-w-full">{{ p.name }}</span>
+            {% endif %}
+          {% else %}
+            <span class="block text-[16px] font-geist-mono-regular text-black/25 italic leading-none mb-1 whitespace-nowrap overflow-hidden max-w-full">empty</span>
+          {% endif %}
+        {% endmacro %}
+
+        {% for room in rooms %}
+          {% set room_title = room.name if (room.name and room.name|trim) else "Room " ~ (room.index + 1) %}
+          <div>
+            <span class="block text-[13px] text-black/45 font-geist-light tracking-wider mb-2 ml-4">
+              {{ room_title }} · {{ room.format }} · {{ room.language }}
+            </span>
+
+            <div class="bg-black/[0.05] w-full rounded-[24px] p-3 select-none">
+              {% if room.format == "OPD" %}
+                {# OPD: 2×2 — Government | Opposition  /  Judges | Free Speakers #}
+                <div class="grid grid-cols-2 gap-1">
+                  <div class="flex flex-col items-start justify-start ml-2">
+                    <span class="text-[13px] text-black/45 font-geist-light tracking-wider mb-1.5">Government</span>
+                    {% for slot in room.slots if slot.role == "speaker" and slot.subrole == "Gov" %}
+                      {{ name_pill(slot, my_participant_id) }}
+                    {% endfor %}
+                  </div>
+                  <div class="flex flex-col items-start justify-start ml-2">
+                    <span class="text-[13px] text-black/45 font-geist-light tracking-wider mb-1.5">Opposition</span>
+                    {% for slot in room.slots if slot.role == "speaker" and slot.subrole == "Opp" %}
+                      {{ name_pill(slot, my_participant_id) }}
+                    {% endfor %}
+                  </div>
+                  <div class="flex flex-col items-start justify-start mt-2 pt-2 p-1 pl-4 bg-black/[0.05] rounded-[18px]">
+                    <span class="text-[13px] text-black/45 font-geist-light tracking-wider mb-1.5">Judges</span>
+                    {% for slot in room.slots if slot.role == "judge" %}
+                      {{ name_pill(slot, my_participant_id) }}
+                    {% endfor %}
+                  </div>
+                  <div class="flex flex-col items-start justify-start mt-2 ml-2">
+                    <span class="text-[13px] text-black/45 font-geist-light tracking-wider mb-1.5">Free Speakers</span>
+                    {% for slot in room.slots if slot.role == "speaker" and slot.subrole == "Free" %}
+                      {{ name_pill(slot, my_participant_id) }}
+                    {% endfor %}
+                  </div>
+                </div>
+              {% else %}
+                {# BP: 2×2 OG/OO/CG/CO, then a full-width Judges box (2-col internal). #}
+                <div class="grid grid-cols-2 gap-1">
+                  {% for sub in ["OG", "OO", "CG", "CO"] %}
+                    <div class="flex flex-col items-start justify-start ml-2">
+                      <span class="text-[13px] text-black/45 font-geist-light tracking-wider mb-1.5">{{ sub }}</span>
+                      {% for slot in room.slots if slot.role == "speaker" and slot.subrole == sub %}
+                        {{ name_pill(slot, my_participant_id) }}
+                      {% endfor %}
+                    </div>
+                  {% endfor %}
+                </div>
+                <div class="flex flex-col items-start justify-start mt-2 p-1 pl-4 bg-black/[0.05] rounded-[18px]">
+                  <span class="text-[13px] text-black/45 font-geist-light tracking-wider mb-1.5">Judges</span>
+                  {% set judge_slots = room.slots | selectattr('role', 'equalto', 'judge') | list %}
+                  {% set half = (judge_slots|length + 1) // 2 %}
+                  <div class="grid grid-cols-2 gap-1 w-full">
+                    <div>
+                      {% for slot in judge_slots[:half] %}
+                        {{ name_pill(slot, my_participant_id) }}
+                      {% endfor %}
+                    </div>
+                    <div>
+                      {% for slot in judge_slots[half:] %}
+                        {{ name_pill(slot, my_participant_id) }}
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      {% endif %}
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer Area — absolutely positioned so the rooms list above can
+       scroll *behind* it; the main element's bottom mask fades content
+       into transparency before it would visually collide. -->
+  <div class="absolute bottom-0 inset-x-0 flex flex-col items-center mb-6 px-4 z-20">
+
+    <div class="flex items-center justify-center w-full mb-3">
+      <div class="bg-[#111] border-[2px] border-[#1B1B1B] w-full max-w-[420px] rounded-[20px] shadow-lg flex items-center justify-between p-1.5 select-none">
+        <!-- Left: Event Code -->
+        <div class="flex flex-col items-start justify-center flex-1 min-w-0 pl-3">
+          <span class="text-[12px] text-[#777] font-geist-light tracking-wider">Event Code</span>
+          <span class="block text-[22px] font-geist-mono-regular text-[#ddd] leading-none mb-0.5 whitespace-nowrap overflow-hidden w-full"
+                style="-webkit-mask-image: linear-gradient(to right, black 65%, transparent 95%); mask-image: linear-gradient(to right, black 65%, transparent 95%);">
+            #{{ event_code }}
+          </span>
+        </div>
+        <!-- Right: QR + Share -->
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button id="qr-btn"
+                  class="w-12 h-12 flex items-center justify-center bg-[#333] hover:bg-[#666] active:scale-95 text-white rounded-xl transition-all focus:outline-none"
+                  aria-label="Show QR code">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 stroke-white fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <path d="M14 14h2v2h-2z"/><path d="M18 18h3v3h-3z"/>
+              <path d="M14 18v3h2v-3z"/><path d="M18 14h3v2h-3z"/>
+            </svg>
+          </button>
+          <button id="share-btn"
+                  class="w-20 h-12 flex items-center justify-center bg-[#333] hover:bg-[#666] active:scale-95 text-white rounded-xl transition-all focus:outline-none"
+                  aria-label="Share rooms link">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 stroke-white fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center flex flex-col gap-1">
+      <div class="text-[#cccccc] text-sm">
+        <a href="/legal#impressum" class="hover:text-gray-400 transition-colors">Impressum</a> -
+        <a href="/legal#datenschutz" class="hover:text-gray-400 transition-colors">Datenschutz</a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- QR modal -->
+  <div id="qr-modal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-4"
+       role="dialog" aria-modal="true" aria-label="QR code">
+    <div class="bg-white rounded-[30px] p-6 max-w-sm w-full flex flex-col items-center gap-4">
+      <h3 class="font-geist-halbfett text-lg text-[#191919]">Scan to see rooms</h3>
+      <div id="qr-img" class="w-64 h-64 rounded-[14px] flex items-center justify-center overflow-hidden"></div>
+      <code id="qr-url" class="text-xs text-[#616161] font-geist-mono-regular text-center break-all"></code>
+      <button id="qr-close" class="font-geist-mono-medium tracking-[0.2em] text-[#1B1B1B]/60 hover:text-[#1B1B1B] uppercase text-sm py-1">
+        close
+      </button>
+    </div>
+  </div>
+
+  <script src="/static/vendor/qrcode.min.js"></script>
+  <script>
+    (function () {
+      const eventCode = "{{ event_code }}";
+      const shareUrl = location.origin + "/rooms?event=" + eventCode;
+
+      const qrBtn     = document.getElementById("qr-btn");
+      const shareBtn  = document.getElementById("share-btn");
+      const modal     = document.getElementById("qr-modal");
+      const qrImg     = document.getElementById("qr-img");
+      const qrUrl     = document.getElementById("qr-url");
+      const qrClose   = document.getElementById("qr-close");
+
+      function copyFallback(text) {
+        const ta = document.createElement("textarea");
+        ta.value = text; ta.setAttribute("readonly", "");
+        ta.style.position = "fixed"; ta.style.top = "0"; ta.style.left = "0"; ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+        let ok = false; try { ok = document.execCommand("copy"); } catch (_) {}
+        document.body.removeChild(ta);
+        return ok;
+      }
+
+      shareBtn.addEventListener("click", async () => {
+        if (navigator.share) {
+          try { await navigator.share({ url: shareUrl, title: "Debate rooms" }); return; } catch (_) {}
+        }
+        let ok = false;
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(shareUrl); ok = true;
+          }
+        } catch (_) {}
+        if (!ok) ok = copyFallback(shareUrl);
+        if (ok) {
+          shareBtn.classList.add("ring-2", "ring-emerald-400");
+          setTimeout(() => shareBtn.classList.remove("ring-2", "ring-emerald-400"), 900);
+        }
+      });
+
+      function openQr() {
+        qrImg.innerHTML = "";
+        new QRCode(qrImg, {
+          text: shareUrl, width: 240, height: 240,
+          colorDark: "#191919", colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M,
+        });
+        qrUrl.textContent = shareUrl;
+        modal.classList.remove("hidden");
+      }
+      function closeQr() { modal.classList.add("hidden"); }
+
+      qrBtn.addEventListener("click", openQr);
+      qrClose.addEventListener("click", closeQr);
+      modal.addEventListener("click", (e) => { if (e.target === modal) closeQr(); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeQr(); });
+    })();
+  </script>
+</body>
+</html>
