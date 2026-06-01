@@ -90,7 +90,6 @@ See [coolify.md](coolify.md) for screenshots/extra notes.
 ```bash
 # Smoke tests (build the Docker image automatically on first run):
 bash tests/smoke_api.sh
-bash tests/smoke_pages.sh
 bash tests/smoke_admin.sh
 
 # Solver test (needs ortools — easiest via the Docker image):

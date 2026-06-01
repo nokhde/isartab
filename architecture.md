@@ -46,17 +46,17 @@ are vendored under `app/static/vendor/`), no third-party JS at runtime.
 │   deps.py             — ConnDep, EventDep, AdminEventDep            │
 │   models.py           — Pydantic DTOs + Literal types               │
 └──────────────────────────────┬──────────────────────────────────────┘
-                               │ sqlite3.Connection (per-request)
+                               │ shared sqlite3.Connection (lock-serialised)
 ┌──────────────────────────────▼──────────────────────────────────────┐
 │  Business / DAO layer                                               │
 │   db.py      — schema, migrations, thin SQL CRUD helpers            │
 │   solver.py  — CP-SAT propose_rooms / fill_remaining + slot ops     │
-│   settings.py — env-driven config (DATA_DIR, BASE_URL)              │
+│   settings.py — env-driven config (BASE_URL)                       │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────────┐
-│  SQLite — $DATA_DIR/tournaments.db (PRAGMA journal_mode = WAL)      │
-│   events · participants · rooms · slots                             │
+│  SQLite — in-memory only (file:…?mode=memory&cache=shared)          │
+│   events · participants · rooms · slots — wiped on restart          │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -79,7 +79,7 @@ are vendored under `app/static/vendor/`), no third-party JS at runtime.
 ```
 app/
   main.py              FastAPI app factory + lifespan (runs db.migrate())
-  settings.py          Frozen dataclass: DATA_DIR, BASE_URL, db_path
+  settings.py          Frozen dataclass: BASE_URL, db_uri (in-memory)
   deps.py              ConnDep, EventDep (by code), AdminEventDep (by token)
   models.py            Pydantic DTOs and shared Literal types
   db.py                SQLite connection, schema, CRUD helpers, token gen
@@ -99,8 +99,10 @@ app/
 tests/                 Smoke shell scripts + test_solver.py
 legacy/                Original prototype solver — reference only,
                        NOT imported by the app
-data/                  SQLite DB lives here (mount as a volume in prod)
 ```
+
+The database is in-memory only — no files are written to disk and all
+data is wiped on restart (by design, for data protection).
 
 `legacy/` is read-only history. Do not import from it.
 
@@ -427,18 +429,22 @@ add it here and in `models.SlotDTO`.
 
 ## 10. Configuration and deployment
 
-`settings.py` reads exactly two env vars:
+`settings.py` reads exactly one env var:
 
 | Env var    | Default                  | What for                                                    |
 | ---------- | ------------------------ | ----------------------------------------------------------- |
-| `DATA_DIR` | `./data`                 | Where `tournaments.db` lives. Mount as a volume.            |
 | `BASE_URL` | `http://localhost:8000`  | Public URL for QR codes / share links. No trailing slash.   |
 
-The Dockerfile sets `DATA_DIR=/data` and declares it as a volume. The
-SQLite database file is the only persistent state. There are no
-migrations beyond the idempotent `_SCHEMA` and the additive `name`
-column on `rooms`; future schema changes belong in `db.migrate()` and
-must be additive (no destructive ALTER).
+The database is in-memory only: nothing is persisted to disk and all
+state is wiped on restart (by design, for data protection), so no volume
+is needed. `db.py` keeps a single process-wide connection and serialises
+access to it with a lock, because a private `:memory:` DB is invisible to
+other connections and the shared-cache alternative deadlocks under
+concurrency. **Run a single Uvicorn worker** — multiple workers would each
+get their own separate in-memory DB. There are no migrations beyond the
+idempotent `_SCHEMA` and the additive `name` column on `rooms`; future
+schema changes belong in `db.migrate()` and must be additive (no
+destructive ALTER).
 
 ---
 
@@ -448,7 +454,6 @@ must be additive (no destructive ALTER).
 | -------------------------- | -------------------------------------------------------------------- |
 | `tests/test_solver.py`     | Solver correctness — runs CP-SAT against generated participants.     |
 | `tests/smoke_api.sh`       | Public API happy paths (events, participants, /me).                  |
-| `tests/smoke_pages.sh`     | HTML pages return 200 with the right shells.                         |
 | `tests/smoke_admin.sh`     | Admin lifecycle: open → close → propose → fill → publish.            |
 | `tests/smoke_db.py`        | DB layer + token generators.                                         |
 
@@ -499,8 +504,8 @@ not gaps:
 - **No background jobs.** All solver runs happen in the request thread.
   This is acceptable because event sizes are bounded (~50 participants,
   ≤5 rooms) and CP-SAT finishes in seconds with a 30 s hard cap.
-- **No multi-DB / no sharding.** Single SQLite file. One event = one row
-  + cascaded children.
+- **No multi-DB / no sharding.** Single in-memory SQLite database. One
+  event = one row + cascaded children.
 - **No tracing / structured logs.** `uvicorn` access logs are enough.
 
 If any of these become a problem, that is a real architectural decision

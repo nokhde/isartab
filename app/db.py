@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import secrets
 import sqlite3
+import threading
 import time
 from contextlib import contextmanager
 from typing import Iterator, Optional
@@ -71,32 +72,39 @@ CREATE INDEX IF NOT EXISTS idx_rooms_event ON rooms(event_code);
 
 
 # ─── Connection plumbing ───────────────────────────────────────────────────
-def _connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(settings.db_uri, uri=True)
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-# Keep-alive connection. A shared-cache in-memory database is destroyed the
-# moment its last open connection closes. Per-request connections open and
-# close on every request, so we hold one connection open for the whole
-# process lifetime to keep the database — and its data — alive in between.
-# Nothing is persisted to disk; everything is gone when the process exits.
-_keepalive: sqlite3.Connection = _connect()
+# One in-memory database for the whole process. Data lives only in RAM and
+# is wiped when the process exits — by design, for data protection.
+#
+# We deliberately use a SINGLE shared connection rather than one-per-request:
+#   * a private ":memory:" database is only visible to the connection that
+#     created it, so per-request connections would each see an empty DB;
+#   * the shared-cache alternative ("cache=shared") lets connections share a
+#     DB but raises "database table is locked" under concurrent access.
+# So we keep one connection open for the process lifetime and serialise all
+# access to it with a re-entrant lock. check_same_thread=False is required
+# because FastAPI runs sync endpoints across a thread pool; the lock makes
+# that access safe by allowing only one transaction at a time. This is more
+# than fast enough for this app's scale (a single club evening).
+_conn: sqlite3.Connection = sqlite3.connect(
+    settings.db_uri, uri=True, check_same_thread=False
+)
+_conn.execute("PRAGMA foreign_keys = ON")
+_conn.row_factory = sqlite3.Row
+_lock = threading.RLock()
 
 
 def get_conn() -> Iterator[sqlite3.Connection]:
-    """FastAPI dependency. Commits on clean exit; rolls back on exception."""
-    conn = _connect()
-    try:
-        yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    """FastAPI dependency. Serialises access to the single in-memory
+    connection; commits on clean exit, rolls back on any error or early
+    teardown (e.g. client disconnect) so no partial work leaks into the
+    next request."""
+    with _lock:
+        try:
+            yield _conn
+            _conn.commit()
+        except BaseException:
+            _conn.rollback()
+            raise
 
 
 conn_ctx = contextmanager(get_conn)
