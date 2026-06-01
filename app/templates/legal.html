@@ -31,20 +31,31 @@
 
     <h1 class="font-geist-halbfett text-2xl mb-1" id="impressum">Impressum</h1>
     <p class="text-[#616161] text-xs mb-3">Angaben gemäß § 5 TMG</p>
-    <p>
-      [Name des Betreibers / Vereins]<br>
-      [Straße, Hausnummer]<br>
-      [PLZ Ort]<br>
-      [Land]
-    </p>
-    <p class="mt-3">
-      E-Mail: [kontakt@example.org]<br>
-      [ggf. Vereinsregister + Nummer]<br>
-      Vertretungsberechtigt: [Name]
-    </p>
+    {% if imprint_text %}
+    <p class="whitespace-pre-line">{{ imprint_text }}</p>
     <p class="mt-3 text-[#616161] text-xs">
       Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: wie oben.
     </p>
+    {% else %}
+    <div class="rounded-md border border-dashed border-[#ddd] bg-[#fafafa] p-4 text-[#959595]">
+      <p class="font-geist-halbfett text-[#616161] mb-2">
+        Impressum noch nicht konfiguriert
+      </p>
+      <p class="mb-2">
+        Setze die Umgebungsvariable <code>IMPRINT_TEXT</code> mit folgenden
+        Pflichtangaben (jede in eine eigene Zeile):
+      </p>
+      <ul class="list-disc list-inside space-y-0.5">
+        <li>Name des Betreibers / Vereins</li>
+        <li>Straße &amp; Hausnummer</li>
+        <li>PLZ &amp; Ort</li>
+        <li>Land</li>
+        <li>E-Mail-Adresse</li>
+        <li>ggf. Vereinsregister + Registernummer</li>
+        <li>Vertretungsberechtigte Person</li>
+      </ul>
+    </div>
+    {% endif %}
 
     <hr class="my-8 border-[#eee]">
 

@@ -17,6 +17,7 @@ data protection). Do not mount a volume.
 | Name | Required | Example | Notes |
 | --- | --- | --- | --- |
 | `BASE_URL` | yes | `https://debate.example.org` | Used for share links shown to admins. No trailing slash. |
+| `IMPRINT_TEXT` | recommended | `Verein e.V.\nStr. 1\n80331 München\n…` | Free-form Impressum shown on `/legal`. Newlines are preserved. If unset, `/legal` shows a placeholder listing the required fields. |
 
 ## After first deploy
 

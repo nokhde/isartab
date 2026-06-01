@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 
 from .. import db, solver
 from ..deps import ConnDep
+from ..settings import settings
 
 router = APIRouter()
 
@@ -32,7 +33,8 @@ def landing(request: Request) -> Response:
 @router.get("/legal", response_class=HTMLResponse)
 def legal_page(request: Request) -> Response:
     return templates.TemplateResponse(
-        request, "legal.html", {},
+        request, "legal.html",
+        {"imprint_text": settings.imprint_text},
         headers={"Cache-Control": "max-age=3600"},
     )
 

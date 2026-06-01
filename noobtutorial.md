@@ -111,10 +111,16 @@ On the next screen ("Configuration"):
 6. **Domains:** type your full URL, e.g. `https://debate.your-domain.com`
    (include `https://`). Coolify will automatically set up the HTTPS
    certificate.
-7. **Environment Variables** → add one:
+7. **Environment Variables** → add:
    - **Name:** `BASE_URL`
    - **Value:** `https://debate.your-domain.com` (same URL, no trailing
      slash)
+
+   Add a second one for your legal imprint (Impressum):
+   - **Name:** `IMPRINT_TEXT`
+   - **Value:** your name/club, address, email etc. — each item on its own
+     line. If you skip this, the `/legal` page just shows a placeholder
+     listing what's required.
 
    You do **not** need to set up persistent storage. This app keeps all
    data in memory only — nothing is saved to disk, and every event is

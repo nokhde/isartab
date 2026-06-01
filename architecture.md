@@ -429,11 +429,12 @@ add it here and in `models.SlotDTO`.
 
 ## 10. Configuration and deployment
 
-`settings.py` reads exactly one env var:
+`settings.py` reads these env vars:
 
-| Env var    | Default                  | What for                                                    |
-| ---------- | ------------------------ | ----------------------------------------------------------- |
-| `BASE_URL` | `http://localhost:8000`  | Public URL for QR codes / share links. No trailing slash.   |
+| Env var        | Default                  | What for                                                        |
+| -------------- | ------------------------ | -------------------------------------------------------------- |
+| `BASE_URL`     | `http://localhost:8000`  | Public URL for QR codes / share links. No trailing slash.      |
+| `IMPRINT_TEXT` | `""`                     | Free-form Impressum shown verbatim on `/legal` (newlines kept). Empty → placeholder listing the required fields. |
 
 The database is in-memory only: nothing is persisted to disk and all
 state is wiped on restart (by design, for data protection), so no volume
