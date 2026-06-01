@@ -72,11 +72,18 @@ CREATE INDEX IF NOT EXISTS idx_rooms_event ON rooms(event_code);
 
 # ─── Connection plumbing ───────────────────────────────────────────────────
 def _connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(settings.db_path)
+    conn = sqlite3.connect(settings.db_uri, uri=True)
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
     conn.row_factory = sqlite3.Row
     return conn
+
+
+# Keep-alive connection. A shared-cache in-memory database is destroyed the
+# moment its last open connection closes. Per-request connections open and
+# close on every request, so we hold one connection open for the whole
+# process lifetime to keep the database — and its data — alive in between.
+# Nothing is persisted to disk; everything is gone when the process exits.
+_keepalive: sqlite3.Connection = _connect()
 
 
 def get_conn() -> Iterator[sqlite3.Connection]:

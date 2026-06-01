@@ -8,20 +8,15 @@
 
 ## Persistent storage
 
-Mount one volume so the SQLite database survives restarts:
-
-| Host volume (Coolify-managed) | Container path |
-| --- | --- |
-| `debate-allocator-data` | `/data` |
-
-The app writes `/data/tournaments.db`.
+None required. The database is in-memory only — nothing is written to
+disk, and all data is wiped on every restart/redeploy (by design, for
+data protection). Do not mount a volume.
 
 ## Environment variables
 
 | Name | Required | Example | Notes |
 | --- | --- | --- | --- |
 | `BASE_URL` | yes | `https://debate.example.org` | Used for share links shown to admins. No trailing slash. |
-| `DATA_DIR` | no | `/data` | Defaults to `/data` inside the container (set by the Dockerfile). |
 
 ## After first deploy
 

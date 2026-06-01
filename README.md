@@ -22,13 +22,14 @@ If you have Docker installed, this is the easiest way:
 
 ```bash
 docker build -t debate-allocator .
-docker run --rm -p 8000:8000 -v "$(pwd)/data":/data debate-allocator
+docker run --rm -p 8000:8000 debate-allocator
 ```
 
 Open <http://localhost:8000> and click "Create event". Done.
 
-The `data/` folder holds your SQLite database — keep it around between
-runs and you keep your events.
+The database is **in-memory only** — nothing is written to disk, and all
+events are wiped when the app restarts. This is intentional, for data
+protection. There is no `data/` folder and no volume to mount.
 
 ## Run it without Docker
 
@@ -51,11 +52,12 @@ Docker host works. For [Coolify](https://coolify.io) specifically:
 
 1. **New Resource → Dockerfile** pointing at this repo.
 2. **Port:** `8000`.
-3. **Persistent volume:** mount onto `/data` (this is where the SQLite
-   file lives — without a volume, every redeploy wipes your events).
-4. **Environment variable:** set `BASE_URL` to your public HTTPS URL
+3. **Environment variable:** set `BASE_URL` to your public HTTPS URL
    (e.g. `https://debate.example.org`, no trailing slash). This is what
    appears in share links and QR codes.
+
+No persistent volume is needed: the database lives in memory only and is
+wiped on every restart/redeploy (by design, for data protection).
 
 That's it. After the first deploy, hit `BASE_URL/healthz` — you should
 see `{"ok": true}`.
@@ -93,7 +95,7 @@ bash tests/smoke_admin.sh
 
 # Solver test (needs ortools — easiest via the Docker image):
 docker run --rm -v "$(pwd)":/repo -w /repo \
-  -e PYTHONPATH=/repo -e DATA_DIR=/repo/data \
+  -e PYTHONPATH=/repo \
   --entrypoint python debate-allocator tests/test_solver.py
 ```
 

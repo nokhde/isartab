@@ -115,14 +115,12 @@ On the next screen ("Configuration"):
    - **Name:** `BASE_URL`
    - **Value:** `https://debate.your-domain.com` (same URL, no trailing
      slash)
-8. **Persistent Storage** → add one:
-   - **Source path:** `debate-data` (any name works)
-   - **Destination path:** `/data`
 
-   This is important. Without it, your events get wiped every time the
-   app restarts.
+   You do **not** need to set up persistent storage. This app keeps all
+   data in memory only — nothing is saved to disk, and every event is
+   wiped when the app restarts. That's on purpose, for data protection.
 
-9. Click **Deploy** (top right).
+8. Click **Deploy** (top right).
 
 Wait 1–2 minutes. The status will go from "Building" → "Running".
 
@@ -144,8 +142,10 @@ that event can't be recovered.
   the QR shown on `/created`) with participants.
 - **Admin panel** lives at the admin link you got at creation time.
 - **Updates:** when this project gets new features on GitHub, click
-  **Redeploy** in Coolify and you're on the latest version. Your events
-  (and participants) survive because of the persistent volume.
+  **Redeploy** in Coolify and you're on the latest version. **Heads up:**
+  a redeploy (or any restart) wipes all current events and participants,
+  because the data lives in memory only. Redeploy between events, not in
+  the middle of one.
 
 ---
 
@@ -156,9 +156,9 @@ that event can't be recovered.
 - **Browser warning about an invalid certificate:** the domain DNS
   hasn't propagated yet, or you typed the domain wrong in Coolify.
   Double-check both, then click **Redeploy**.
-- **Events disappeared after redeploy:** the persistent storage in Step
-  4 wasn't set up. Add it now (events from the past won't come back, but
-  future ones will be safe).
+- **Events disappeared after redeploy:** that's expected. This app stores
+  data in memory only, so any restart or redeploy clears all events. Only
+  redeploy between events, never during one.
 - **Forgot the admin link for a live event:** there's no recovery.
   Always copy the admin link to a safe place when you create the event.
 
@@ -174,5 +174,6 @@ that event can't be recovered.
 | **Total** | ~5 €/month |
 
 You can shut the server down between debate seasons if you want; just
-re-create it later and redeploy (the database file lives on the
-persistent volume).
+re-create it later and redeploy. Note there's nothing to back up — the
+app keeps no data on disk, so each run starts with a clean, empty
+database.
