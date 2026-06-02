@@ -9,33 +9,22 @@
 <style>
   @font-face { font-family: 'Geist Regular';  src: url('/static/fonts/geist/Geist-Regular.woff2')  format('woff2'); font-weight: 400; }
   @font-face { font-family: 'Geist Halbfett'; src: url('/static/fonts/geist/Geist-SemiBold.woff2') format('woff2'); font-weight: 600; }
-  body {
-    background-color: #ffffff;
-    background-image: url('/static/assets/bg.png');
-    background-repeat: no-repeat;
-    background-position: top center;
-    background-size: 100% auto;
-  }
+  body { background-color: #ffffff; }
   .font-geist-regular  { font-family: 'Geist Regular', sans-serif;  font-weight: 400; }
   .font-geist-halbfett { font-family: 'Geist Halbfett', sans-serif; font-weight: 600; }
+  .logo-muted { filter: grayscale(100%) invert(0.65); }
 </style>
 </head>
 
-<body class="min-h-screen flex flex-col items-center font-sans">
+<body class="min-h-screen bg-white font-sans text-[#3a3a3a]">
 
-  <div class="absolute top-6 left-6 sm:top-8 sm:left-8">
-    <a href="/"><img src="/static/assets/isartab_logo.png" alt="Isartab" class="h-8 sm:h-10 object-contain" /></a>
-  </div>
+  <main class="w-full max-w-[680px] mx-auto px-6 pt-10 sm:pt-12 mb-16 font-geist-regular text-sm leading-relaxed">
 
-  <main class="w-full max-w-[640px] px-6 mt-28 sm:mt-32 mb-12 font-geist-regular text-[#1B1B1B] text-sm leading-relaxed">
+    <a href="/"><img src="/static/assets/isartab_logo.png" alt="Isartab" class="h-8 sm:h-9 object-contain logo-muted mb-6" /></a>
 
-    <h1 class="font-geist-halbfett text-2xl mb-1" id="impressum">Impressum</h1>
-    <p class="text-[#616161] text-xs mb-3">Angaben gemäß § 5 TMG</p>
+    <h1 class="font-geist-halbfett text-2xl text-[#1f1f1f] mb-3">Impressum</h1>
     {% if imprint_text %}
     <p class="whitespace-pre-line">{{ imprint_text }}</p>
-    <p class="mt-3 text-[#616161] text-xs">
-      Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: wie oben.
-    </p>
     {% else %}
     <div class="rounded-md border border-dashed border-[#ddd] bg-[#fafafa] p-4 text-[#959595]">
       <p class="font-geist-halbfett text-[#616161] mb-2">
@@ -57,14 +46,17 @@
     </div>
     {% endif %}
 
+    <p class="mt-6 whitespace-pre-line text-[#8a8a8a] text-xs">Entwicklung Isartab: Noah Khalil
+Contribute: <a href="https://github.com/nokhde/isartab" class="underline hover:text-[#3a3a3a]">https://github.com/nokhde/isartab</a></p>
+
     <hr class="my-8 border-[#eee]">
 
-    <h1 class="font-geist-halbfett text-2xl mb-3" id="datenschutz">Datenschutzerklärung</h1>
+    <h1 class="font-geist-halbfett text-2xl text-[#1f1f1f] mb-3">Datenschutzerklärung</h1>
 
-    <h2 class="font-geist-halbfett mt-4 mb-1">Verantwortlicher</h2>
+    <h2 class="font-geist-halbfett text-[#1f1f1f] mt-4 mb-1">Verantwortlicher</h2>
     <p>Siehe Impressum oben.</p>
 
-    <h2 class="font-geist-halbfett mt-4 mb-1">Welche Daten wir verarbeiten</h2>
+    <h2 class="font-geist-halbfett text-[#1f1f1f] mt-4 mb-1">Welche Daten wir verarbeiten</h2>
     <p>
       Wenn du dich für ein Debatten-Event registrierst, speichern wir:
       Name, Sprach-/Format-/Rollen-Präferenz, Erfahrungslevel und optionale
@@ -72,7 +64,7 @@
       (Art. 6 Abs. 1 lit. b DSGVO – Vertragsanbahnung/-erfüllung).
     </p>
 
-    <h2 class="font-geist-halbfett mt-4 mb-1">Wie lange wir sie speichern</h2>
+    <h2 class="font-geist-halbfett text-[#1f1f1f] mt-4 mb-1">Wie lange wir sie speichern</h2>
     <p>
       Die Daten werden ausschließlich im Arbeitsspeicher (RAM) unseres
       Servers gehalten und niemals dauerhaft auf einen Datenträger
@@ -82,7 +74,7 @@
       max. 14 Tagen gelöscht.
     </p>
 
-    <h2 class="font-geist-halbfett mt-4 mb-1">Cookies / Local Storage</h2>
+    <h2 class="font-geist-halbfett text-[#1f1f1f] mt-4 mb-1">Cookies / Local Storage</h2>
     <p>
       Wir setzen keine Cookies. Im <code>localStorage</code> deines Browsers
       speichern wir einen zufälligen Token, damit dein Browser dich beim
@@ -90,13 +82,13 @@
       und verlässt dein Gerät nur als Teil der Event-Anfrage.
     </p>
 
-    <h2 class="font-geist-halbfett mt-4 mb-1">Weitergabe an Dritte</h2>
+    <h2 class="font-geist-halbfett text-[#1f1f1f] mt-4 mb-1">Weitergabe an Dritte</h2>
     <p>
       Keine. Alle Skripte und Schriften liegen auf unserem Server; es gibt
       kein Tracking, keine Analytics, keine externen CDNs.
     </p>
 
-    <h2 class="font-geist-halbfett mt-4 mb-1">Deine Rechte</h2>
+    <h2 class="font-geist-halbfett text-[#1f1f1f] mt-4 mb-1">Deine Rechte</h2>
     <p>
       Auskunft, Berichtigung, Löschung, Einschränkung, Widerspruch und
       Datenübertragbarkeit (Art. 15–21 DSGVO). Eine Mail an die
@@ -107,10 +99,6 @@
     <p class="mt-8 text-[#959595] text-xs">Stand: 2026-06</p>
 
   </main>
-
-  <footer class="w-full flex flex-col items-center mb-6 px-4">
-    <a href="/" class="text-[#cccccc] hover:text-gray-400 transition-colors text-sm">← back</a>
-  </footer>
 
 </body>
 </html>
