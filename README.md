@@ -1,5 +1,8 @@
 <img src="app/static/assets/isartab_logo.png" alt="isartab logo" width="33%">
 
+> ### Live demo: **[isartab.nuh.me](https://isartab.nuh.me)**
+> Try it out — create an event and play around. (Don't use the demo for a real event)
+
 > **New to this kind of thing?** If you're not a programmer, follow
 > [noobtutorial.md](noobtutorial.md) instead — it walks you through
 > deployment step by step with no jargon.
@@ -75,6 +78,7 @@ See [coolify.md](coolify.md) for screenshots/extra notes.
 | `/waiting?event={code}` | Live waiting page |
 | `/rooms?event={code}` | Public room view (after publish) |
 | `/admin/{admin_token}` | Tabmaster panel |
+| `/legal` | Impressum & privacy (uses `IMPRINT_TEXT`) |
 | `/healthz` | Health check |
 
 ## Tokens & secrets
@@ -106,5 +110,5 @@ tests/      Smoke + solver tests
 legacy/     Original solver + participant generator (kept for reference)
 Dockerfile  Single-stage python:3.12-slim
 coolify.md  Coolify deployment notes
-proposal.md design doc
+architecture.md design doc
 ```
