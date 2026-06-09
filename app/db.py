@@ -97,7 +97,23 @@ def get_conn() -> Iterator[sqlite3.Connection]:
     """FastAPI dependency. Serialises access to the single in-memory
     connection; commits on clean exit, rolls back on any error or early
     teardown (e.g. client disconnect) so no partial work leaks into the
-    next request."""
+    next request.
+
+    RE-ENTRANCY IS FORBIDDEN. `_lock` is a binary semaphore, NOT a re-entrant
+    lock: acquiring it twice from the same call chain DEADLOCKS the whole
+    server (every future request blocks forever on the held semaphore — no
+    crash, no log, just a hang). So a request must take a connection exactly
+    once and thread it through:
+
+        * In routers, depend on `conn` (ConnDep) and pass it down to db/solver
+          helpers — never open a second one inside the handler.
+        * Never call `get_conn()` / `conn_ctx()` from code that already holds a
+          connection (e.g. inside a db.* or solver.* helper). Those helpers take
+          `conn` as a parameter precisely so they don't need to.
+
+    `conn_ctx()` is only for entry points that own no connection yet: startup
+    `migrate()` and standalone scripts/tests.
+    """
     with _lock:
         try:
             yield _conn

@@ -28,6 +28,9 @@ from ortools.sat.python import cp_model
 
 # ─── Configuration ─────────────────────────────────────────────────────────
 DEFAULT_MAX_ROOMS = 5
+
+#Do not raise this without moving the solve out from under the lock first.
+DEFAULT_SOLVE_TIME_LIMIT_S = 10.0
 PREFERRED_ROOM_SIZE = (8, 11)
 MIN_ROOM_SIZE = 8
 
@@ -75,7 +78,7 @@ def solve_assignment(
     participants: list,
     *,
     max_rooms: int = DEFAULT_MAX_ROOMS,
-    time_limit_s: float = 30.0,
+    time_limit_s: float = DEFAULT_SOLVE_TIME_LIMIT_S,
 ) -> dict:
     """Optimal room assignment. Returns {'rooms', 'objective', 'status'}."""
     n = len(participants)
@@ -314,7 +317,8 @@ def _event_room_limit(conn: sqlite3.Connection, code: str) -> int:
 #  Phase 1 — propose_rooms
 # ═══════════════════════════════════════════════════════════════════════════
 def propose_rooms(
-    conn: sqlite3.Connection, code: str, *, time_limit_s: float = 30.0
+    conn: sqlite3.Connection, code: str, *,
+    time_limit_s: float = DEFAULT_SOLVE_TIME_LIMIT_S,
 ) -> dict:
     """Build an empty room skeleton chosen by the solver. **Wipes any
     existing rooms for this event.** No participant is assigned to any slot.
@@ -525,7 +529,8 @@ def add_judge_slot(conn: sqlite3.Connection, room_id: int) -> int:
 #  Phase 2 — fill_remaining (respects locked)
 # ═══════════════════════════════════════════════════════════════════════════
 def fill_remaining(
-    conn: sqlite3.Connection, code: str, *, time_limit_s: float = 30.0
+    conn: sqlite3.Connection, code: str, *,
+    time_limit_s: float = DEFAULT_SOLVE_TIME_LIMIT_S,
 ) -> dict:
     """Clears every unlocked filled slot, then fills all open slots with a
     mini-CP. Locked slots stay exactly as they are.
