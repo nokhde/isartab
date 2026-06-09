@@ -90,7 +90,7 @@ _conn: sqlite3.Connection = sqlite3.connect(
 )
 _conn.execute("PRAGMA foreign_keys = ON")
 _conn.row_factory = sqlite3.Row
-_lock = threading.RLock()
+_lock = threading.BoundedSemaphore(1)
 
 
 def get_conn() -> Iterator[sqlite3.Connection]:

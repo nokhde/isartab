@@ -96,6 +96,14 @@ See [coolify.md](coolify.md) for screenshots/extra notes.
 bash tests/smoke_api.sh
 bash tests/smoke_admin.sh
 
+# Concurrency regression test — guards against the DB-lock outage where
+# the whole server wedges under simultaneous requests (see app/db.py).
+docker run --rm -v "$(pwd)":/repo -w /repo \
+  -e PYTHONPATH=/repo \
+  --entrypoint python debate-allocator tests/smoke_concurrency.py
+# …or directly, if you have a local venv with the deps installed:
+.venv/bin/python tests/smoke_concurrency.py
+
 # Solver test (needs ortools — easiest via the Docker image):
 docker run --rm -v "$(pwd)":/repo -w /repo \
   -e PYTHONPATH=/repo \
