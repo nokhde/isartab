@@ -1,7 +1,9 @@
 """Public event + participant API (no admin token required)."""
 from __future__ import annotations
 
+import logging
 import sqlite3
+import sys
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -15,8 +17,49 @@ from ..models import (
     ParticipantWithSlot,
     SlotDTO,
 )
+from ..settings import settings
 
 router = APIRouter(prefix="/api/events", tags=["events"])
+
+# ─── Forensic registration log ─────────────────────────────────────────────
+# NOTE: this writes participant names and free-text special requests to the
+# logs — personal data that the in-memory DB deliberately never persists. Keep
+# log retention short and access-controlled.
+_reg_log = logging.getLogger("isartab.registration")
+if not _reg_log.handlers:
+    _handler = logging.StreamHandler(sys.stdout)
+    _handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s [registration] %(message)s")
+    )
+    _reg_log.addHandler(_handler)
+    _reg_log.setLevel(logging.INFO)
+    _reg_log.propagate = False
+
+
+def _log_registration(event_code: str, action: str, row: sqlite3.Row) -> None:
+    """Print one accepted registration to stdout for log-based recovery.
+    `action` is 'register' or 'modify'. Logged from the stored row so it
+    reflects exactly what was persisted (e.g. after name truncation).
+
+    No-op when LOG_REGISTRATIONS is disabled (settings.log_registrations)."""
+    if not settings.log_registrations:
+        return
+    _reg_log.info(
+        "event=%s action=%s pid=%s name=%r language=%s format=%s role=%s "
+        "could_speak_last=%s experience=%s forced_judge_last=%s "
+        "special_request=%r",
+        event_code,
+        action,
+        row["id"],
+        row["name"],
+        row["language"],
+        row["format"],
+        row["role"],
+        bool(row["could_speak_last"]),
+        int(row["experience"]),
+        bool(row["forced_judge_last"]),
+        row["special_request"],
+    )
 
 
 def _row_to_participant_dto(row: sqlite3.Row) -> ParticipantDTO:
@@ -68,6 +111,7 @@ def submit_participant(
     existing = db.get_participant_by_browser_token(
         conn, event["code"], body.browser_token
     )
+    action = "register" if existing is None else "modify"
     try:
         if existing is None:
             # Fresh registration.
@@ -114,6 +158,7 @@ def submit_participant(
         conn, event["code"], body.browser_token
     )
     assert row is not None
+    _log_registration(event["code"], action, row)
     return _row_to_participant_dto(row)
 
 

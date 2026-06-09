@@ -69,6 +69,18 @@ See [coolify.md](coolify.md) for screenshots/extra notes.
 
 ---
 
+## Environment variables
+
+All optional — the app runs with defaults if none are set. Copy
+[.env.example](.env.example) to `.env` for local use, or set them in your
+host's dashboard (e.g. Coolify). The real `.env` is git-ignored.
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `BASE_URL` | `http://localhost:8000` | Public base URL (no trailing slash). Used in share links and QR codes. |
+| `IMPRINT_TEXT` | _(empty)_ | Free-form Impressum block shown verbatim on `/legal`. Multi-line; quote it. Empty → placeholder. |
+| `LOG_REGISTRATIONS` | `true` | Print every accepted registration to stdout so history can be reconstructed from logs (DB is in-memory). Set `false`/`0`/`no`/`off` to disable. Logs personal data — keep retention short. |
+
 ## URLs
 
 | Path | What it is |
