@@ -15,9 +15,7 @@ participants register from their phones, the tabmaster proposes rooms
 publishes — participants see their room appear on their phone. No accounts, no emails. Each event has a code; each admin gets a secret
 link; each browser identifies itself with a local token.
 
-<img src="app/static/assets/showcase1.png" alt="showcase 1" width="20%">
-<img src="app/static/assets/showcase2.png" alt="showcase 2" width="20%">
-<img src="app/static/assets/showcase3.png" alt="showcase 3" width="20%">
+<img src="app/static/assets/showcase.png" alt="showcase">
 
 
 ---
