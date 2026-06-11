@@ -12,10 +12,13 @@
 A small web app for the **Munich Debating Club** to run debate evenings:
 participants register from their phones, the tabmaster proposes rooms
 (with an OR-Tools CP-SAT solver), drags people around, locks slots, and
-publishes — participants see their room appear on their phone.
-
-No accounts, no emails. Each event has a code; each admin gets a secret
+publishes — participants see their room appear on their phone. No accounts, no emails. Each event has a code; each admin gets a secret
 link; each browser identifies itself with a local token.
+
+<img src="app/static/assets/showcase1.png" alt="showcase 1" width="20%">
+<img src="app/static/assets/showcase2.png" alt="showcase 2" width="20%">
+<img src="app/static/assets/showcase3.png" alt="showcase 3" width="20%">
+
 
 ---
 
