@@ -10,6 +10,15 @@ body {
 [x-cloak] { display: none !important; }
 .muted { color: #6b6b70; }
 
+/* Fill the viewport so the two columns below can scroll independently
+   instead of the whole page scrolling as one. */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
 /* Top bar */
 .topbar {
   display: flex; flex-wrap: wrap; gap: .75rem 1rem;
@@ -239,11 +248,14 @@ button.link:hover { background: rgba(255,255,255,.1); }
 .layout {
   display: grid;
   grid-template-columns: 280px 1fr;
-  min-height: calc(100vh - 60px);
+  flex: 1;
+  min-height: 0;        /* allow children to scroll instead of growing #app */
+  overflow: hidden;
 }
 .participants {
   background: #fff; border-right: 1px solid #ececef;
   padding: .75rem 1rem 1.5rem;
+  min-height: 0;        /* grid item must shrink for its own scroll to kick in */
   overflow-y: auto;
 }
 .participants h2 { font-size: 1rem; margin: .25rem 0 .75rem; }
@@ -278,7 +290,7 @@ button.link:hover { background: rgba(255,255,255,.1); }
 .empty { color: #6b6b70; font-size: .85rem; padding: .5rem 0; }
 
 /* Rooms */
-.rooms { padding: 1rem 1.25rem 2rem; overflow-y: auto; }
+.rooms { padding: 1rem 1.25rem 2rem; min-height: 0; overflow-y: auto; }
 .placeholder {
   background: #fff; border: 1px dashed #d2d2d7; border-radius: 12px;
   padding: 2rem; text-align: center; color: #555;
@@ -302,8 +314,8 @@ button.link:hover { background: rgba(255,255,255,.1); }
 .room__layout--bp {
   grid-template-columns: 1fr 1fr;
   grid-template-areas:
-    "og cg"
-    "oo co"
+    "og oo"
+    "cg co"
     "judges judges";
 }
 .room__layout--opd {
@@ -395,6 +407,16 @@ button.link:hover { background: rgba(255,255,255,.1); }
 .slot-card--mismatch .slot-card__meta > span {
   background: #fff5e1;
   border-color: #ffd497;
+}
+/* The individual tag(s) that actually deviate get a slightly more intense
+   orange than the card itself, so the tabmaster sees *why* it's flagged
+   without it screaming red. */
+.slot-card__meta > span.tag--mismatch,
+.slot-card--mismatch .slot-card__meta > span.tag--mismatch {
+  background: #ffd9a0;
+  border-color: #f5a623;
+  color: #8a5300;
+  font-weight: 700;
 }
 
 /* ── Drag-and-drop visuals ───────────────────────────────────────────── */

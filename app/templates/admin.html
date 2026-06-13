@@ -396,9 +396,12 @@
                             </span>
                           </div>
                           <div class="slot-card__meta">
-                            <span x-text="langFlag(slot.participant.language)"></span>
-                            <span x-text="slot.participant.format"></span>
-                            <span x-text="roleLabel(slot.participant.role)"></span>
+                            <span :class="{ 'tag--mismatch': tagMismatch(slot, slot._room, 'language') }"
+                                  x-text="langFlag(slot.participant.language)"></span>
+                            <span :class="{ 'tag--mismatch': tagMismatch(slot, slot._room, 'format') }"
+                                  x-text="slot.participant.format"></span>
+                            <span :class="{ 'tag--mismatch': tagMismatch(slot, slot._room, 'role') }"
+                                  x-text="roleLabel(slot.participant.role)"></span>
                             <span x-text="`exp ${slot.participant.experience}`"></span>
                           </div>
                           <div class="slot-card__req"

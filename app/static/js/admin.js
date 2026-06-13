@@ -219,6 +219,23 @@ function adminPanel(adminToken) {
       return false;
     },
 
+    // Per-tag version of isMismatch: tells whether one specific dimension
+    // ("language" | "format" | "role") of the participant's preference is
+    // the one that doesn't fit, so we can highlight just that tag.
+    tagMismatch(slot, room, dim) {
+      if (!slot || !room || !slot.participant) return false;
+      const p = slot.participant;
+      if (dim === "language")
+        return p.language !== "DE/EN" && p.language !== room.language;
+      if (dim === "format")
+        return p.format !== "egal" && p.format !== room.format;
+      if (dim === "role") {
+        if (p.role === "S" && slot.role === "judge") return true;
+        if (p.role === "J" && slot.role === "speaker") return true;
+      }
+      return false;
+    },
+
     roomLabelText(room) {
       return room.name && room.name.trim()
         ? room.name

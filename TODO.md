@@ -15,13 +15,9 @@
 
 - highlighten des abweichenden Tags
 
-
-
 - Drag And Drop vereinfachen
-- Separats Scrolling in den Panes
 - Bug: MagicFill-Fehler verursacht verschwinden
 - Mehr Free Speakers hinzufügbar
 - Leute mit Anmerkungen oben in der Liste anzeigen
-- OO/OG anders anordnen, so ist ungünstig (flip schräg)
 
 - offline Debate Timer! Mit visualisierung/ Sounds
