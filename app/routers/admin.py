@@ -243,6 +243,32 @@ def add_judge_slot_endpoint(
     return _build_state(refreshed, conn)
 
 
+@router.post(
+    "/{admin_token}/rooms/{room_id}/free-slots",
+    response_model=AdminStateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_free_slot_endpoint(
+    room_id: int, event: AdminEventDep, conn: ConnDep
+) -> AdminStateResponse:
+    _require_closed(event)
+    row = conn.execute(
+        "SELECT format FROM rooms WHERE id = ? AND event_code = ?",
+        (room_id, event["code"]),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Room not found")
+    if row["format"] != "OPD":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Free-speaker slots only exist in OPD rooms",
+        )
+    solver.add_free_slot(conn, room_id)
+    refreshed = db.get_event_by_code(conn, event["code"])
+    assert refreshed is not None
+    return _build_state(refreshed, conn)
+
+
 @router.delete(
     "/{admin_token}/rooms/{room_id}", response_model=AdminStateResponse
 )

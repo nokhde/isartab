@@ -365,6 +365,11 @@
                           @click="addJudgeSlot(room)"
                           title="Add another judge slot to this room"
                           aria-label="Add judge slot">+ Judge</button>
+                  <button class="small add-judge-btn"
+                          x-show="region.key === 'free' && event.status === 'closed'"
+                          @click="addFreeSlot(room)"
+                          title="Add another free-speaker slot to this room"
+                          aria-label="Add free-speaker slot">+ Free</button>
                 </h4>
                 <ul class="slots">
                   <template x-for="slot in slotsInRegion(room, region)"

@@ -21,3 +21,5 @@
 - Leute mit Anmerkungen oben in der Liste anzeigen
 
 - offline Debate Timer! Mit visualisierung/ Sounds
+
+- Bei rejecten der räume lädt der kreisel ewig

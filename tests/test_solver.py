@@ -178,6 +178,25 @@ def test_add_delete_room_roundtrip() -> None:
             + [solver.OPD_FREE_SUBROLE] * solver.OPD_FREE_DEFAULT
         )
 
+        # add_free_slot appends one more Free slot to the OPD room.
+        before_free = sum(
+            1 for s in solver.get_rooms(conn, code)["rooms"][1]["slots"]
+            if s["subrole"] == solver.OPD_FREE_SUBROLE
+        )
+        solver.add_free_slot(conn, rid2)
+        opd_after = solver.get_rooms(conn, code)["rooms"][1]
+        after_free = sum(
+            1 for s in opd_after["slots"]
+            if s["subrole"] == solver.OPD_FREE_SUBROLE
+        )
+        assert after_free == before_free + 1
+        new_free = [
+            s for s in opd_after["slots"]
+            if s["subrole"] == solver.OPD_FREE_SUBROLE
+        ][-1]
+        assert new_free["role"] == "speaker"
+        assert new_free["participant"] is None and new_free["locked"] is False
+
         solver.delete_room(conn, code, rid)
         after_del = solver.get_rooms(conn, code)
         assert len(after_del["rooms"]) == 1

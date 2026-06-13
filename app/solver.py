@@ -525,6 +525,27 @@ def add_judge_slot(conn: sqlite3.Connection, room_id: int) -> int:
     return int(cur.lastrowid)
 
 
+def add_free_slot(conn: sqlite3.Connection, room_id: int) -> int:
+    """Append one empty Free-speaker slot to an OPD room. Returns its slot_id.
+
+    The Gov/Opp chairs are fixed by the format, but the number of free
+    speakers is open-ended, so this is the admin's escape hatch — the
+    counterpart of `add_judge_slot` for the speaker side.
+    """
+    row = conn.execute(
+        "SELECT COALESCE(MAX(slot_index), -1) + 1 AS next "
+        "FROM slots WHERE room_id = ? AND role = 'speaker'",
+        (room_id,),
+    ).fetchone()
+    next_idx = int(row[0])
+    cur = conn.execute(
+        "INSERT INTO slots(room_id, role, subrole, slot_index, participant_id, locked) "
+        "VALUES (?,?,?,?,NULL,0)",
+        (room_id, "speaker", OPD_FREE_SUBROLE, next_idx),
+    )
+    return int(cur.lastrowid)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  Phase 2 — fill_remaining (respects locked)
 # ═══════════════════════════════════════════════════════════════════════════

@@ -359,6 +359,10 @@ function adminPanel(adminToken) {
       await this.send("POST", `/rooms/${room.room_id}/judge-slots`);
     },
 
+    async addFreeSlot(room) {
+      await this.send("POST", `/rooms/${room.room_id}/free-slots`);
+    },
+
     async seedDemo() {
       await this.post("seed-demo");
     },
