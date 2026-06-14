@@ -25,6 +25,7 @@ body {
   align-items: center;
   padding: .75rem 1rem;
   background: #1d1d1f; color: #fff;
+  position: relative;
 }
 .topbar__left { display: flex; align-items: center; gap: .5rem; }
 .topbar__label { opacity: .65; font-size: .85rem; }
@@ -197,6 +198,23 @@ button.link:hover { background: rgba(255,255,255,.1); }
   border-radius: 999px; font-size: .85rem;
 }
 
+/* Selection indicator: a thin, running dashed blue line under the top bar,
+   shown only while a card is picked up for click-to-place. */
+.select-bar {
+  position: absolute;
+  left: 0; right: 0; top: 100%;   /* sits at the topbar's bottom edge, overlaps below */
+  height: 3px;
+  z-index: 6;
+  background-image: linear-gradient(90deg, #0a84ff 60%, transparent 0);
+  background-size: 14px 3px;
+  background-repeat: repeat-x;
+  box-shadow: 0 0 6px rgba(10, 132, 255, .6);
+  animation: select-bar-run .5s linear infinite;
+}
+@keyframes select-bar-run {
+  to { background-position: 14px 0; }
+}
+
 /* Participant-link bar (always visible under the top bar so the URL
    can be read, copied, or shown on a projector). */
 .link-bar {
@@ -265,9 +283,8 @@ button.link:hover { background: rgba(255,255,255,.1); }
 .participant {
   padding: .5rem .65rem;
   background: #f5f5f7; border: 1px solid #ececef; border-radius: 8px;
-  cursor: grab;
+  cursor: pointer;
 }
-.participant:active { cursor: grabbing; }
 .participant.is-assigned { opacity: .45; }
 .participant__head {
   display: flex; align-items: flex-start; justify-content: space-between;
@@ -347,7 +364,7 @@ button.link:hover { background: rgba(255,255,255,.1); }
   display: flex; flex-wrap: wrap; gap: .4rem;
 }
 
-/* Each <li class="slot"> is the SortableJS drop target. */
+/* Each <li class="slot"> is a click-to-place target. */
 .slot {
   list-style: none;
   width: 10.5rem;
@@ -419,45 +436,44 @@ button.link:hover { background: rgba(255,255,255,.1); }
   font-weight: 700;
 }
 
-/* ── Drag-and-drop visuals ───────────────────────────────────────────── */
-/* The SortableJS ghost is inserted into the target <li class="slot"> as
-   a child. By default it sits below the empty placeholder. Float it on
-   top and pulse it. */
+/* ── Click-to-place ──────────────────────────────────────────────────── */
 .slot { position: relative; }
+/* Filled cards are clickable to "pick up". */
+.slot-card:not(.slot-card--empty) { cursor: pointer; }
 
-.slot .sortable-ghost {
+/* Picked-up card: dashed blue ring as an ::after overlay so it never
+   disturbs the card's own background. A real dashed border follows the
+   card's rounded corners cleanly; a gentle pulse keeps it alive (the
+   "running" dashes live in the top-bar indicator). */
+.participant.is-selected,
+.slot--selected .slot-card { position: relative; }
+.participant.is-selected::after,
+.slot--selected .slot-card::after {
+  content: "";
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 5;
-  opacity: 1 !important;
+  inset: -3px;
+  border: 2px dashed #0a84ff;
+  border-radius: 11px;   /* card radius (8px) + 3px inset → matches the curve */
   pointer-events: none;
-  /* Use the participant-card styling that came over with the clone,
-     plus a clear "drop here" outline. */
-  outline: 2px solid #0071e3;
-  outline-offset: -2px;
+  z-index: 3;
+  animation: select-pulse 1s ease-in-out infinite;
+}
+@keyframes select-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .45; }
+}
+
+/* While a card is picked up, show every slot as a droppable target. */
+.layout.is-picking .slot { cursor: pointer; }
+.layout.is-picking .slot:hover .slot-card {
+  outline: 2px dashed #0a84ff;
+  outline-offset: 1px;
+}
+
+/* The cloned card that flies from source to target on click-to-place. */
+.fly-clone {
   border-radius: 8px;
-  transform-origin: center;
-  animation: pulse-drop 0.45s ease-in-out infinite;
-  box-shadow: 0 6px 14px rgba(0, 113, 227, .25);
-}
-
-@keyframes pulse-drop {
-  0%, 100% { transform: scale(0.92); }
-  50%      { transform: scale(1.08); }
-}
-
-/* While the ghost is overlaid, fade the slot's own card so the dragged
-   one is unambiguously on top. */
-.slot:has(.sortable-ghost) .slot-card { opacity: 0.35; }
-
-/* Hide SortableJS' default chosen/drag overlays on the source list so
-   they don't visually compete with the ghost. */
-.participant.sortable-chosen { opacity: 0.5; }
-.participant.sortable-drag {
-  outline: 2px solid #0071e3;
-  outline-offset: -2px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
 }
 
 button.icon {

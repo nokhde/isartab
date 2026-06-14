@@ -423,6 +423,28 @@ def assign_participant(
     )
 
 
+def swap_slots(conn: sqlite3.Connection, slot_a: int, slot_b: int) -> None:
+    """Exchange the occupants of two slots in a single transaction.
+
+    Whatever each slot holds (a participant or nothing) ends up in the other.
+    Both slots are unlocked — a lock pins a *person to a position*, and a swap
+    breaks that intent (mirrors assign_participant, which unlocks on move).
+    Done in one request so the UI can't get stuck mid-swap.
+    """
+    a = conn.execute("SELECT participant_id FROM slots WHERE id = ?", (slot_a,)).fetchone()
+    b = conn.execute("SELECT participant_id FROM slots WHERE id = ?", (slot_b,)).fetchone()
+    pa = a["participant_id"] if a else None
+    pb = b["participant_id"] if b else None
+    # Clear both first so the UNIQUE(participant_id) index never sees a dup
+    # mid-update, then write the exchanged occupants.
+    conn.execute(
+        "UPDATE slots SET participant_id = NULL, locked = 0 WHERE id IN (?, ?)",
+        (slot_a, slot_b),
+    )
+    conn.execute("UPDATE slots SET participant_id = ? WHERE id = ?", (pb, slot_a))
+    conn.execute("UPDATE slots SET participant_id = ? WHERE id = ?", (pa, slot_b))
+
+
 def set_slot_locked(
     conn: sqlite3.Connection, slot_id: int, locked: bool
 ) -> None:

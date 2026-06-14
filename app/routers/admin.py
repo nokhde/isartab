@@ -289,6 +289,28 @@ def delete_room_endpoint(
     return _build_state(refreshed, conn)
 
 
+@router.post(
+    "/{admin_token}/slots/{slot_a}/swap/{slot_b}",
+    response_model=AdminStateResponse,
+)
+def swap_slots_endpoint(
+    slot_a: int, slot_b: int, event: AdminEventDep, conn: ConnDep
+) -> AdminStateResponse:
+    _require_closed(event)
+    # Both slots must belong to a room in this event.
+    n = conn.execute(
+        "SELECT COUNT(*) AS n FROM slots s JOIN rooms r ON r.id = s.room_id "
+        "WHERE s.id IN (?, ?) AND r.event_code = ?",
+        (slot_a, slot_b, event["code"]),
+    ).fetchone()["n"]
+    if n != 2:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Slot not found")
+    solver.swap_slots(conn, slot_a, slot_b)
+    refreshed = db.get_event_by_code(conn, event["code"])
+    assert refreshed is not None
+    return _build_state(refreshed, conn)
+
+
 @router.patch(
     "/{admin_token}/slots/{slot_id}", response_model=AdminStateResponse
 )

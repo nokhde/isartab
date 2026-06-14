@@ -209,6 +209,35 @@ def test_add_delete_room_roundtrip() -> None:
     print("  test3 ok: add/delete round-trip + cascade")
 
 
+# ─── Test 4: swap_slots exchanges occupants and clears locks ───────────────
+def test_swap_slots() -> None:
+    random.seed(4)
+    ps = generate_participants(20)
+    code = seed_event(ps)
+    with db.conn_ctx() as conn:
+        rid = solver.add_room(conn, code, format="BP", language="EN")
+        slots = solver.get_rooms(conn, code)["rooms"][0]["slots"]
+        s1, s2 = slots[0]["slot_id"], slots[1]["slot_id"]
+        p1, p2 = [p[0] for p in solver._load_participants(conn, code)][:2]
+        solver.assign_participant(conn, s1, p1)
+        solver.assign_participant(conn, s2, p2)
+        solver.set_slot_locked(conn, s1, True)
+
+        solver.swap_slots(conn, s1, s2)
+        after = {x["slot_id"]: x for x in solver.get_rooms(conn, code)["rooms"][0]["slots"]}
+        assert after[s1]["participant"]["id"] == p2
+        assert after[s2]["participant"]["id"] == p1
+        assert after[s1]["locked"] is False and after[s2]["locked"] is False
+
+        # Swapping with an empty slot is just a move.
+        empty = slots[2]["slot_id"]
+        solver.swap_slots(conn, s1, empty)
+        after2 = {x["slot_id"]: x for x in solver.get_rooms(conn, code)["rooms"][0]["slots"]}
+        assert after2[s1]["participant"] is None
+        assert after2[empty]["participant"]["id"] == p2
+    print("  test4 ok: swap_slots exchange + lock clear + empty move")
+
+
 # ─── Smoke test: replicate legacy demo ─────────────────────────────────────
 def smoke_legacy_demo() -> None:
     random.seed(0)
@@ -246,5 +275,7 @@ if __name__ == "__main__":
     test_fill_remaining_respects_locked()
     print("test_add_delete_room_roundtrip")
     test_add_delete_room_roundtrip()
+    print("test_swap_slots")
+    test_swap_slots()
     smoke_legacy_demo()
     print("\nALL CHECKS PASSED")

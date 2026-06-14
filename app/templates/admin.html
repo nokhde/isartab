@@ -6,7 +6,6 @@
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <title>Admin · Debate Allocator</title>
 <link rel="stylesheet" href="/static/css/admin.css">
-<script src="/static/vendor/sortable-1.15.2.min.js" defer></script>
 <script src="/static/js/admin.js" defer></script>
 <script src="/static/vendor/alpine-3.13.5.min.js" defer></script>
 </head>
@@ -159,6 +158,11 @@
 
       </span>
     </div>
+
+    <!-- Selection indicator: a running dashed blue line just under the top
+         bar, lit whenever a card is picked up for click-to-place. Absolutely
+         positioned so it overlaps the content below instead of shifting it. -->
+    <div class="select-bar" x-show="selectedPid !== null" x-cloak aria-hidden="true"></div>
   </header>
 
   <!-- Participant link bar — always visible so the tabmaster can read,
@@ -240,7 +244,7 @@
     <p x-text="loadingMsg || 'Working…'"></p>
   </div>
 
-  <main class="layout">
+  <main class="layout" :class="{ 'is-picking': selectedPid !== null }">
     <!-- Participants -->
     <aside class="participants">
       <h2>Participants <small x-text="`(${participants.length})`"></small></h2>
@@ -248,8 +252,9 @@
         <template x-for="p in participants" :key="p.id">
           <li
             class="participant"
-            :class="{ 'is-assigned': assignedIds.has(p.id) }"
+            :class="{ 'is-assigned': assignedIds.has(p.id), 'is-selected': isPoolSelected(p.id) }"
             :data-participant-id="p.id"
+            @click="onParticipantClick(p)"
           >
             <div class="participant__head">
               <div class="participant__name" x-text="p.name"></div>
@@ -376,9 +381,11 @@
                             :key="slot.slot_id">
                     <li class="slot"
                         :data-slot-id="slot.slot_id"
+                        @click="onSlotClick(slot)"
                         :class="{
                           'slot--filled': slot.participant,
                           'slot--locked': slot.locked,
+                          'slot--selected': isSlotSelected(slot.slot_id),
                         }">
                       <template x-if="slot.participant">
                         <div class="slot-card"
@@ -390,12 +397,12 @@
                                   x-text="slot.participant.name"></span>
                             <span class="slot-card__controls">
                               <button class="icon"
-                                      @click="toggleLock(slot)"
+                                      @click.stop="toggleLock(slot)"
                                       x-text="slot.locked ? '🔒' : '🔓'"
                                       :aria-label="slot.locked ? 'Unlock' : 'Lock'"
                                       :title="slot.locked ? 'Locked — magic fill skips this' : 'Click to lock'"></button>
                               <button class="icon clear"
-                                      @click="clearSlot(slot.slot_id)"
+                                      @click.stop="clearSlot(slot.slot_id)"
                                       aria-label="Unassign"
                                       title="Unassign">×</button>
                             </span>

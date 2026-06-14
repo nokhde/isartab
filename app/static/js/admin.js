@@ -1,4 +1,4 @@
-// Admin panel: Alpine state + SortableJS drag-drop + fetch.
+// Admin panel: Alpine state + click-to-place card assignment + fetch.
 async function copyText(text) {
   try {
     if (navigator.clipboard && window.isSecureContext) {
@@ -34,7 +34,6 @@ function adminPanel(adminToken) {
     errorMsg: null,
     deadlineInput: "",
     countdownTick: 0,
-    _sortables: [],
     _interval: null,
     // Serialize mutations so responses can never apply out of order. Without
     // this, a slow PATCH could land *after* a later one and clobber its
@@ -68,13 +67,18 @@ function adminPanel(adminToken) {
     // Auto-proposal explanation card. Per-event dismissal flag.
     proposalDismissed: !!localStorage.getItem(`proposal_dismissed_${adminToken}`),
 
+    // Click-to-place: an alternative to drag-and-drop that's friendlier on a
+    // laptop trackpad. Click a card → it's "picked up" (marching-ants
+    // highlight); click a target slot → the card flies in; if both source and
+    // target hold a card, the two are swapped. selectedSlotId === null means
+    // the picked-up card came from the participant pool on the left.
+    selectedPid: null,
+    selectedSlotId: null,
+
     async boot() {
       await this.refresh();
       // Re-tick the countdown once per second so it updates live.
       this._interval = setInterval(() => { this.countdownTick++; }, 1000);
-      this.$nextTick(() => this.setupDrag());
-      this.$watch("rooms", () => this.$nextTick(() => this.setupDrag()));
-      this.$watch("participants", () => this.$nextTick(() => this.setupDrag()));
     },
 
     // ───── HTTP helpers ──────────────────────────────────────────────────
@@ -128,7 +132,12 @@ function adminPanel(adminToken) {
 
     applyState(state) {
       this.event = state.event;
-      this.participants = state.participants;
+      // Surface participants with a special request at the top of the list —
+      // they're the ones the tabmaster needs to eyeball. Array.sort is stable,
+      // so the server's original order is preserved within each group.
+      this.participants = [...state.participants].sort(
+        (a, b) => (b.special_request ? 1 : 0) - (a.special_request ? 1 : 0)
+      );
       this.rooms = state.rooms;
       const ids = new Set();
       for (const r of state.rooms)
@@ -328,6 +337,7 @@ function adminPanel(adminToken) {
       if (this.renaming) this.cancelRename();
       else if (this.addRoomOpen) this.addRoomOpen = false;
       else if (this.firstVisit) this.dismissFirstVisit();
+      else if (this.selectedPid !== null) this.clearSelection();
     },
 
     async deleteParticipant(p) {
@@ -349,6 +359,142 @@ function adminPanel(adminToken) {
 
     async clearSlot(slotId) {
       await this.send("PATCH", `/slots/${slotId}`, { participant_id: null });
+    },
+
+    // ───── Click-to-place (drag alternative) ─────────────────────────────
+    clearSelection() {
+      this.selectedPid = null;
+      this.selectedSlotId = null;
+    },
+
+    // Highlight helpers used by the templates' :class bindings.
+    isPoolSelected(pid) {
+      return this.selectedPid === pid && this.selectedSlotId === null;
+    },
+    isSlotSelected(slotId) {
+      return this.selectedSlotId === slotId;
+    },
+
+    // Click on a participant in the left-hand list.
+    onParticipantClick(p) {
+      if (!this.event || this.event.status !== "closed") return;
+      // Clicking the same picked-up pool card again clears the focus.
+      if (this.isPoolSelected(p.id)) { this.clearSelection(); return; }
+      // A slot card is picked up and the user clicked a pool card → drop the
+      // pool card into that slot (its previous occupant returns to the pool).
+      if (this.selectedSlotId !== null) {
+        const destSlot = this.selectedSlotId;
+        this.flyInto(`#plist [data-participant-id="${p.id}"]`,
+                     `[data-slot-id="${destSlot}"]`);
+        this.assignParticipant(destSlot, p.id);
+        this.clearSelection();
+        return;
+      }
+      // Otherwise just pick up this pool card.
+      this.selectedPid = p.id;
+      this.selectedSlotId = null;
+    },
+
+    // Click on a slot (filled card or empty placeholder) inside a room.
+    onSlotClick(slot) {
+      if (!this.event || this.event.status !== "closed") return;
+      const targetSlotId = slot.slot_id;
+      const targetPid = slot.participant ? slot.participant.id : null;
+
+      // Nothing picked up yet: clicking a filled slot picks it up.
+      if (this.selectedPid === null) {
+        if (targetPid !== null) {
+          this.selectedPid = targetPid;
+          this.selectedSlotId = targetSlotId;
+        }
+        return;
+      }
+
+      // Clicking the same slot again clears the focus.
+      if (this.selectedSlotId === targetSlotId) { this.clearSelection(); return; }
+
+      const srcPid = this.selectedPid;
+      const srcSlotId = this.selectedSlotId;
+
+      if (targetPid !== null && srcSlotId !== null) {
+        // Two occupied slots → swap the two cards.
+        this.swapSlots(srcSlotId, targetSlotId);
+      } else {
+        // Target empty, or source from the pool → place source into target.
+        // (If the target was occupied and source came from the pool, the
+        // backend displaces the occupant back to the pool.)
+        const srcSel = srcSlotId !== null
+          ? `[data-slot-id="${srcSlotId}"] .slot-card`
+          : `#plist [data-participant-id="${srcPid}"]`;
+        this.flyInto(srcSel, `[data-slot-id="${targetSlotId}"]`);
+        this.assignParticipant(targetSlotId, srcPid);
+      }
+      this.clearSelection();
+    },
+
+    // Swap the occupants of two slots in ONE atomic request. (Two separate
+    // PATCHes could leave the overlay stuck if the second response was slow
+    // to arrive — the backend now does the exchange in a single transaction.)
+    swapSlots(s1, s2) {
+      const el1 = document.querySelector(`[data-slot-id="${s1}"]`);
+      const el2 = document.querySelector(`[data-slot-id="${s2}"]`);
+      if (el1 && el2) {
+        this._flyClone(el1.querySelector(".slot-card") || el1, el2, false);
+        this._flyClone(el2.querySelector(".slot-card") || el2, el1, false);
+      }
+      this.send("POST", `/slots/${s1}/swap/${s2}`);
+    },
+
+    // Animate a card flying from `srcSel` into `destSel`, fading as it lands.
+    flyInto(srcSel, destSel) {
+      const src = document.querySelector(srcSel);
+      const dest = document.querySelector(destSel);
+      if (src && dest) this._flyClone(src, dest, true);
+    },
+
+    // Clone an element and transition it to another element's position. The
+    // clone is a fixed overlay, so it survives Alpine's authoritative
+    // re-render of the slots underneath it.
+    _flyClone(srcEl, destEl, fade) {
+      const s = srcEl.getBoundingClientRect();
+      const d = destEl.getBoundingClientRect();
+      const clone = srcEl.cloneNode(true);
+      // The clone still carries Alpine directives (x-text, :class, x-show).
+      // It lives at <body> level, outside any x-data scope, so Alpine's global
+      // observer would try to evaluate them and spam "x is not defined". Strip
+      // every Alpine attribute and flag the subtree as ignored.
+      this._stripAlpine(clone);
+      clone.setAttribute("x-ignore", "");
+      clone.classList.add("fly-clone");
+      Object.assign(clone.style, {
+        position: "fixed",
+        left: `${s.left}px`, top: `${s.top}px`,
+        width: `${s.width}px`, height: `${s.height}px`,
+        margin: "0", zIndex: "9999", pointerEvents: "none",
+        transition: "transform .28s cubic-bezier(.2,.8,.2,1), opacity .28s ease",
+      });
+      document.body.appendChild(clone);
+      const dx = (d.left + d.width / 2) - (s.left + s.width / 2);
+      const dy = (d.top + d.height / 2) - (s.top + s.height / 2);
+      requestAnimationFrame(() => {
+        clone.style.transform = `translate(${dx}px, ${dy}px) scale(.96)`;
+        if (fade) clone.style.opacity = ".35";
+      });
+      setTimeout(() => clone.remove(), 320);
+    },
+
+    // Remove Alpine directives (x-*, :bind, @on) from a detached node tree so
+    // it renders as a static snapshot and Alpine never tries to evaluate it.
+    _stripAlpine(root) {
+      const nodes = [root, ...root.querySelectorAll("*")];
+      for (const el of nodes) {
+        for (const attr of [...el.attributes]) {
+          const n = attr.name;
+          if (n.startsWith("x-") || n.startsWith(":") || n.startsWith("@")) {
+            el.removeAttribute(n);
+          }
+        }
+      }
     },
 
     async toggleLock(slot) {
@@ -454,52 +600,6 @@ function adminPanel(adminToken) {
         : "Publish? Participants will see their assignments.";
       if (!confirm(msg)) return;
       await this.post("publish");
-    },
-
-    // ───── Drag & drop ───────────────────────────────────────────────────
-    setupDrag() {
-      // Tear down old instances.
-      for (const s of this._sortables) s.destroy();
-      this._sortables = [];
-
-      if (!this.event || this.event.status !== "closed") return;
-      const Sortable = window.Sortable;
-      if (!Sortable) return;
-
-      const plist = document.getElementById("plist");
-      if (plist) {
-        this._sortables.push(new Sortable(plist, {
-          group: { name: "participants", pull: "clone", put: false },
-          sort: false,
-          animation: 120,
-          // Clicking the participant's × button must not initiate a drag.
-          filter: "button",
-          preventOnFilter: false,
-        }));
-      }
-
-      for (const slotEl of document.querySelectorAll(".slot")) {
-        this._sortables.push(new Sortable(slotEl, {
-          group: { name: "participants", pull: true, put: true },
-          sort: false,
-          animation: 120,
-          // Only the filled card is draggable. Empty placeholders, the
-          // lock toggle and the × button must NOT initiate a drag.
-          draggable: ".slot-card:not(.slot-card--empty)",
-          filter: "button, .slot-card__controls",
-          preventOnFilter: false,
-          onAdd: (evt) => {
-            const pid = parseInt(evt.item.dataset.participantId, 10);
-            const sid = parseInt(slotEl.dataset.slotId, 10);
-            // Strip whatever SortableJS dropped in — Alpine will re-render
-            // the slot authoritatively from server state.
-            evt.item.remove();
-            if (Number.isFinite(pid) && Number.isFinite(sid)) {
-              this.assignParticipant(sid, pid);
-            }
-          },
-        }));
-      }
     },
   };
 }
