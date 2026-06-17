@@ -15,6 +15,4 @@
 
 - offline Debate Timer! Mit visualisierung/ Sounds
 
-- Bei rejecten der räume lädt der kreisel ewig
-
-- Namen nicht so sehr abschneiden.
+- Namen nicht so sehr abschneiden

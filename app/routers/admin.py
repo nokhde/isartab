@@ -420,7 +420,18 @@ def magic_fill_endpoint(
             status.HTTP_409_CONFLICT,
             "No rooms exist — call /propose-rooms or /rooms first",
         )
-    solver.fill_remaining(conn, event["code"])
+    result = solver.fill_remaining(conn, event["code"])
+    status_name = result.get("status")
+    if status_name not in ("OPTIMAL", "FEASIBLE", "NOTHING_TO_DO"):
+        # Solve was infeasible or timed out. fill_remaining has already rolled
+        # back its changes, so the existing seating is intact — tell the
+        # tabmaster instead of silently returning an unchanged 200.
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Magic Fill could not find a valid seating ({status_name}). "
+            "The current seating is unchanged — check that room minimums fit "
+            "the number of participants.",
+        )
     refreshed = db.get_event_by_code(conn, event["code"])
     assert refreshed is not None
     return _build_state(refreshed, conn)

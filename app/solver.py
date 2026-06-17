@@ -580,6 +580,13 @@ def fill_remaining(
     """
     _validate_code(code)
 
+    # All mutations below happen inside a savepoint so that an infeasible /
+    # timed-out solve leaves the hand-arranged seating untouched. Without this,
+    # step 1 wipes every unlocked slot, and an early return on a non-feasible
+    # status would let the caller commit that wipe with nothing filled back in
+    # (silent data loss). ROLLBACK TO undoes the clear and any partial writes.
+    conn.execute("SAVEPOINT magic_fill")
+
     # Step 1: vacate every unlocked filled slot.
     conn.execute("""
         UPDATE slots SET participant_id = NULL
@@ -614,6 +621,7 @@ def fill_remaining(
                 filled[(room["room_id"], s["role"])] += 1
 
     if not unplaced:
+        conn.execute("RELEASE SAVEPOINT magic_fill")
         return {**state, "objective": 0, "status": "NOTHING_TO_DO"}
 
     model = cp_model.CpModel()
@@ -680,7 +688,12 @@ def fill_remaining(
     status = solver.Solve(model)
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        return {**state, "objective": None, "status": solver.StatusName(status)}
+        # No usable solution — undo step 1's clear so the existing seating
+        # survives intact, then surface the status to the caller.
+        conn.execute("ROLLBACK TO SAVEPOINT magic_fill")
+        conn.execute("RELEASE SAVEPOINT magic_fill")
+        return {**get_rooms(conn, code),
+                "objective": None, "status": solver.StatusName(status)}
 
     for i in range(n):
         for j in range(m):
@@ -701,6 +714,7 @@ def fill_remaining(
     # not be sat in a judge chair again if a same-room swap is feasible.
     _unswap_forced_judges(conn, code)
 
+    conn.execute("RELEASE SAVEPOINT magic_fill")
     return {**get_rooms(conn, code),
             "objective": solver.ObjectiveValue(),
             "status": solver.StatusName(status)}
