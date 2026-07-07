@@ -12,3 +12,5 @@
 - Bug: MagicFill-Fehler verursacht verschwinden
 
 - Namen nicht so sehr abschneiden
+
+- Duplication Warn

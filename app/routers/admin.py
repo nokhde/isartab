@@ -7,15 +7,18 @@ from __future__ import annotations
 
 import random
 import sqlite3
+from collections import Counter
 
 from fastapi import APIRouter, HTTPException, status
 
-from .. import db, solver
+from .. import db, log_recovery, solver
 from ..deps import AdminEventDep, ConnDep
 from ..models import (
     AdminStateResponse,
     EventDTO,
     EventUpdateRequest,
+    LogRecoverRequest,
+    LogRecoverResult,
     ParticipantDTO,
     RoomCreateRequest,
     RoomDTO,
@@ -497,6 +500,82 @@ def seed_demo_endpoint(
     refreshed = db.get_event_by_code(conn, event["code"])
     assert refreshed is not None
     return _build_state(refreshed, conn)
+
+
+@router.post("/{admin_token}/recover-from-log", response_model=LogRecoverResult)
+def recover_from_log_endpoint(
+    body: LogRecoverRequest, event: AdminEventDep, conn: ConnDep
+) -> LogRecoverResult:
+    """Rebuild a roster from pasted stdout logs after a crash + restart.
+
+    The DB is in-memory and lost on restart; the registration log is the only
+    record of who signed up. We parse it, pick the original event with the
+    most survivors (a `docker logs` paste can span several past events — we
+    import one, not a merge of all), and insert those into *this* event with
+    fresh browser tokens. `dry_run` parses only, for the modal's live preview.
+    """
+    survivors = log_recovery.parse_registration_log(body.log)
+
+    # Group by the original event code and choose the dominant one. Ties break
+    # toward the code seen first (Counter.most_common is order-stable in 3.7+).
+    by_code: Counter[str] = Counter(p.event_code for p in survivors)
+    chosen = by_code.most_common(1)[0][0] if by_code else None
+    chosen_group = [p for p in survivors if p.event_code == chosen]
+    others = [c for c in by_code if c != chosen]
+
+    if body.dry_run:
+        return LogRecoverResult(
+            dry_run=True,
+            detected=len(chosen_group),
+            recovered=0,
+            skipped=0,
+            names=[p.name for p in chosen_group],
+            event_code=chosen,
+            other_event_codes=others,
+        )
+
+    # A real import mutates the roster, so gate it like registration/seeding.
+    if event["status"] != "open":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Recovery only allowed while open; current is '{event['status']}'",
+        )
+
+    recovered = 0
+    for p in chosen_group:
+        # Same defense-in-depth truncation as submit_participant, so a
+        # doctored paste can't exceed the form's stored lengths.
+        name = p.name[:12]
+        special_request = p.special_request[:60] if p.special_request else None
+        try:
+            db.insert_participant(
+                conn,
+                event_code=event["code"],
+                browser_token=db.gen_browser_token(),
+                name=name,
+                language=p.language,
+                format=p.format,
+                role=p.role,
+                could_speak_last=p.could_speak_last,
+                experience=p.experience,
+                special_request=special_request,
+                forced_judge_last=p.forced_judge_last,
+            )
+            recovered += 1
+        except sqlite3.IntegrityError:
+            # Name already present in this event (re-run, or a truncation
+            # collision) — skip and keep going.
+            continue
+
+    return LogRecoverResult(
+        dry_run=False,
+        detected=len(chosen_group),
+        recovered=recovered,
+        skipped=len(chosen_group) - recovered,
+        names=[p.name for p in chosen_group],
+        event_code=chosen,
+        other_event_codes=others,
+    )
 
 
 @router.post("/{admin_token}/publish", response_model=AdminStateResponse)

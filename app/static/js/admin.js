@@ -60,6 +60,16 @@ function adminPanel(adminToken) {
     addRoomFormat: "BP",
     addRoomLanguage: "EN",
 
+    // Recover-from-log dialog state.
+    recoverOpen: false,
+    recoverText: "",
+    recoverBusy: false,
+    recoverPreviewCount: 0,
+    recoverPreviewNames: "",
+    recoverOtherCodes: [],
+    recoverResult: null,
+    _recoverPreviewTimer: null,
+
     // Inline-rename state (only one room can be renamed at a time).
     renaming: null,
     renamingName: "",
@@ -335,6 +345,7 @@ function adminPanel(adminToken) {
 
     onEscape() {
       if (this.renaming) this.cancelRename();
+      else if (this.recoverOpen) this.closeRecover();
       else if (this.addRoomOpen) this.addRoomOpen = false;
       else if (this.firstVisit) this.dismissFirstVisit();
       else if (this.selectedPid !== null) this.clearSelection();
@@ -511,6 +522,89 @@ function adminPanel(adminToken) {
 
     async seedDemo() {
       await this.post("seed-demo");
+    },
+
+    // ───── Recover from logs ─────────────────────────────────────────────
+    openRecover() {
+      this.recoverText = "";
+      this.recoverPreviewCount = 0;
+      this.recoverPreviewNames = "";
+      this.recoverOtherCodes = [];
+      this.recoverResult = null;
+      this.recoverBusy = false;
+      this.recoverOpen = true;
+    },
+
+    closeRecover() {
+      if (this.recoverBusy) return;
+      clearTimeout(this._recoverPreviewTimer);
+      this.recoverOpen = false;
+    },
+
+    // Debounced live preview: ask the server (single source of truth for the
+    // parser) what it would recover, without touching the DB.
+    onRecoverInput() {
+      this.recoverResult = null;
+      clearTimeout(this._recoverPreviewTimer);
+      if (this.recoverText.trim().length === 0) {
+        this.recoverPreviewCount = 0;
+        this.recoverPreviewNames = "";
+        this.recoverOtherCodes = [];
+        return;
+      }
+      this._recoverPreviewTimer = setTimeout(() => this._fetchRecoverPreview(), 250);
+    },
+
+    async _fetchRecoverPreview() {
+      const text = this.recoverText;
+      try {
+        const res = await this._recoverRequest(text, true);
+        // Ignore a stale response if the textarea changed while in flight.
+        if (text !== this.recoverText) return;
+        this.recoverPreviewCount = res.detected;
+        this.recoverOtherCodes = res.other_event_codes || [];
+        const names = res.names || [];
+        const shown = names.slice(0, 12).join(", ");
+        this.recoverPreviewNames =
+          names.length > 12 ? `${shown}, +${names.length - 12} more` : shown;
+      } catch (_) {
+        // Preview is best-effort; leave the last good value in place.
+      }
+    },
+
+    async submitRecover() {
+      if (this.recoverPreviewCount === 0) return;
+      this.recoverBusy = true;
+      this.recoverResult = null;
+      try {
+        const res = await this._recoverRequest(this.recoverText, false);
+        await this.refresh();
+        let msg = `Recovered ${res.recovered} participant`
+          + `${res.recovered === 1 ? "" : "s"}.`;
+        if (res.skipped > 0) msg += ` ${res.skipped} skipped (duplicate names).`;
+        this.recoverResult = msg;
+        // Leave the result visible briefly, then close.
+        setTimeout(() => { this.recoverOpen = false; }, 1800);
+      } catch (e) {
+        this.recoverResult = null;
+        this.errorMsg = e.message;
+      } finally {
+        this.recoverBusy = false;
+      }
+    },
+
+    async _recoverRequest(log, dryRun) {
+      const r = await fetch(this.api("/recover-from-log"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ log, dry_run: dryRun }),
+      });
+      if (!r.ok) {
+        let detail = `HTTP ${r.status}`;
+        try { const j = await r.json(); detail = j.detail || detail; } catch (_) {}
+        throw new Error(detail);
+      }
+      return r.json();
     },
 
     async confirmClearUnlocked() {

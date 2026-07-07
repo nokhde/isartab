@@ -138,4 +138,31 @@ class AdminStateResponse(BaseModel):
     rooms: list[RoomDTO]
 
 
+class LogRecoverRequest(BaseModel):
+    """Body of POST /api/admin/{admin_token}/recover-from-log.
+
+    `log` is a raw paste of container stdout; the server extracts the
+    registration lines. `dry_run` powers the modal's live preview — parse and
+    report what *would* be recovered without touching the DB."""
+    log: str = Field(max_length=5_000_000)
+    dry_run: bool = False
+
+
+class LogRecoverResult(BaseModel):
+    """Outcome of a log-recovery run (real or dry)."""
+    dry_run: bool
+    # Distinct participants parsed from the chosen event's lines.
+    detected: int
+    # Actually inserted (0 for a dry run).
+    recovered: int
+    # Parsed but not inserted — duplicate/invalid names rejected by the DB.
+    skipped: int
+    # Names of the chosen event's survivors, in order (for the preview line).
+    names: list[str]
+    # The original event code chosen for import (None if nothing parsed).
+    event_code: Optional[str] = None
+    # Other original event codes present in the paste but not imported.
+    other_event_codes: list[str] = Field(default_factory=list)
+
+
 ParticipantWithSlot.model_rebuild()

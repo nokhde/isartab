@@ -610,3 +610,23 @@ textarea:focus-visible, select:focus-visible {
   margin: .5rem 0;
   user-select: all;
 }
+
+/* Recover-from-log dialog: wider, with a big paste area. */
+.modal--wide { max-width: 720px; }
+.recover-box {
+  display: block; width: 100%;
+  min-height: 240px; resize: vertical;
+  margin: .5rem 0;
+  padding: .6rem .75rem;
+  border: 1px solid #d2d2d7; border-radius: 8px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: .8rem; line-height: 1.4;
+  white-space: pre; overflow-wrap: normal; overflow-x: auto;
+}
+.recover-preview {
+  margin: .25rem 0 0; font-size: .85rem; color: #333;
+}
+.recover-preview strong { color: #0071e3; }
+.recover-result {
+  margin: .5rem 0 0; font-size: .9rem; font-weight: 600; color: #1a7f37;
+}
