@@ -5,12 +5,12 @@ logic stays in the routers / solver.
 """
 from __future__ import annotations
 
+import asyncio
 import secrets
 import sqlite3
-import threading
 import time
 from contextlib import contextmanager
-from typing import Iterator, Optional
+from typing import AsyncIterator, Iterator, Optional
 
 from .settings import settings
 
@@ -81,40 +81,50 @@ CREATE INDEX IF NOT EXISTS idx_rooms_event ON rooms(event_code);
 #   * the shared-cache alternative ("cache=shared") lets connections share a
 #     DB but raises "database table is locked" under concurrent access.
 # So we keep one connection open for the process lifetime and serialise all
-# access to it with a re-entrant lock. check_same_thread=False is required
-# because FastAPI runs sync endpoints across a thread pool; the lock makes
-# that access safe by allowing only one transaction at a time. This is more
-# than fast enough for this app's scale (a single club evening).
+# access to it, allowing only one transaction at a time. check_same_thread=False
+# is required because FastAPI runs sync endpoints across a thread pool. This is
+# more than fast enough for this app's scale (a single club evening).
+#
+# THE LOCK MUST BE AN asyncio LOCK AWAITED ON THE EVENT LOOP — NOT a
+# threading lock inside a sync dependency. This caused a total outage
+# (2026-07-01): FastAPI runs sync yield-dependencies through the anyio
+# threadpool, which is capped at 40 tokens, and a request blocked on a
+# threading lock inside that dependency pins a token for as long as it waits.
+# The waiting page polls /public every second per open tab, so while one
+# admin request held the lock for a ~10 s solver run, 40+ polls piled up and
+# pinned every token. The lock-holder then needed one more token to run its
+# own handler (run_in_threadpool) — held by requests waiting on the very lock
+# it owned. Circular wait, permanent deadlock: no exception, no log line,
+# /healthz (also threadpool-bound) starved too, container unhealthy, restart
+# required. With an asyncio.Lock, waiters queue on the event loop and cost
+# nothing; only the single active request occupies threadpool threads.
 _conn: sqlite3.Connection = sqlite3.connect(
     settings.db_uri, uri=True, check_same_thread=False
 )
 _conn.execute("PRAGMA foreign_keys = ON")
 _conn.row_factory = sqlite3.Row
-_lock = threading.BoundedSemaphore(1)
+_lock = asyncio.Lock()
 
 
-def get_conn() -> Iterator[sqlite3.Connection]:
+async def get_conn() -> AsyncIterator[sqlite3.Connection]:
     """FastAPI dependency. Serialises access to the single in-memory
     connection; commits on clean exit, rolls back on any error or early
     teardown (e.g. client disconnect) so no partial work leaks into the
-    next request.
+    next request. Async on purpose — see the outage note above `_lock`.
 
-    RE-ENTRANCY IS FORBIDDEN. `_lock` is a binary semaphore, NOT a re-entrant
-    lock: acquiring it twice from the same call chain DEADLOCKS the whole
-    server (every future request blocks forever on the held semaphore — no
-    crash, no log, just a hang). So a request must take a connection exactly
-    once and thread it through:
+    RE-ENTRANCY IS FORBIDDEN. `_lock` is a plain asyncio.Lock, NOT re-entrant:
+    acquiring it twice from the same call chain DEADLOCKS the whole server
+    (every future request blocks forever on the held lock — no crash, no log,
+    just a hang). So a request must take a connection exactly once and thread
+    it through:
 
         * In routers, depend on `conn` (ConnDep) and pass it down to db/solver
           helpers — never open a second one inside the handler.
         * Never call `get_conn()` / `conn_ctx()` from code that already holds a
           connection (e.g. inside a db.* or solver.* helper). Those helpers take
           `conn` as a parameter precisely so they don't need to.
-
-    `conn_ctx()` is only for entry points that own no connection yet: startup
-    `migrate()` and standalone scripts/tests.
     """
-    with _lock:
+    async with _lock:
         try:
             yield _conn
             _conn.commit()
@@ -123,7 +133,20 @@ def get_conn() -> Iterator[sqlite3.Connection]:
             raise
 
 
-conn_ctx = contextmanager(get_conn)
+@contextmanager
+def conn_ctx() -> Iterator[sqlite3.Connection]:
+    """Sync twin of get_conn for entry points that run with NO server traffic:
+    startup `migrate()` (lifespan runs before the first request is accepted)
+    and standalone scripts/tests. It deliberately takes no lock — it cannot
+    take the request lock (that one lives on the event loop), so using it
+    while the server is serving would race the request path. Don't.
+    """
+    try:
+        yield _conn
+        _conn.commit()
+    except BaseException:
+        _conn.rollback()
+        raise
 
 
 def migrate() -> None:
@@ -295,6 +318,18 @@ def get_participant_by_browser_token(
         "SELECT * FROM participants WHERE event_code = ? AND browser_token = ?",
         (event_code, browser_token),
     ).fetchone()
+
+
+def delete_participant_by_browser_token(
+    conn: sqlite3.Connection, event_code: str, browser_token: str
+) -> None:
+    """Remove a participant identified by their browser token (self-service
+    unregister). Any slot they sat in becomes empty via ON DELETE SET NULL on
+    slots.participant_id — same teardown as the admin-side delete."""
+    conn.execute(
+        "DELETE FROM participants WHERE event_code = ? AND browser_token = ?",
+        (event_code, browser_token),
+    )
 
 
 def update_participant_by_browser_token(

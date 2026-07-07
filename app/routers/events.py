@@ -37,9 +37,10 @@ if not _reg_log.handlers:
 
 
 def _log_registration(event_code: str, action: str, row: sqlite3.Row) -> None:
-    """Print one accepted registration to stdout for log-based recovery.
-    `action` is 'register' or 'modify'. Logged from the stored row so it
-    reflects exactly what was persisted (e.g. after name truncation).
+    """Print one registration event to stdout for log-based recovery.
+    `action` is 'register', 'modify' or 'unregister'. Logged from the stored
+    row so it reflects exactly what was persisted (e.g. after name truncation);
+    for 'unregister' the row is the state just before deletion.
 
     No-op when LOG_REGISTRATIONS is disabled (settings.log_registrations)."""
     if not settings.log_registrations:
@@ -209,3 +210,27 @@ def get_my_participant(
         event_status=event["status"],
         slot=slot_dto,
     )
+
+
+# ─── DELETE /api/events/{code}/participants/me ─────────────────────────────
+@router.delete("/{code}/participants/me")
+def delete_my_participant(
+    event: EventDep,
+    conn: ConnDep,
+    token: Annotated[str, Query(min_length=32, max_length=32,
+                                pattern=r"^[a-f0-9]+$")],
+) -> dict[str, str]:
+    """Self-service unregister: a participant pulls their own entry using the
+    browser token from localStorage. Only while registration is open — once
+    the event is closed/published the allocation is the admin's to manage
+    (mirrors submit_participant, which also requires status 'open')."""
+    if event["status"] != "open":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"Registration is {event['status']}"
+        )
+    row = db.get_participant_by_browser_token(conn, event["code"], token)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Participant not found")
+    db.delete_participant_by_browser_token(conn, event["code"], token)
+    _log_registration(event["code"], "unregister", row)
+    return {"status": "unregistered"}

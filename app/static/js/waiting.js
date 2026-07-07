@@ -9,6 +9,7 @@
   const countdownEl = document.getElementById("countdown");
   const modifySuffixEl = document.getElementById("modify-suffix");
   const modifyLink = document.getElementById("modify-link");
+  const unregisterBtn = document.getElementById("unregister-btn");
   const qrBtn      = document.getElementById("qr-btn");
   const shareBtn   = document.getElementById("share-btn");
   const modal      = document.getElementById("qr-modal");
@@ -31,6 +32,56 @@
   // sense — hide it. (Previously this was tied to the format lookup too.)
   if (!browserToken) {
     modifySuffixEl.style.display = "none";
+  }
+
+  // ───── Unregister (self-service removal) ──────────────────────────────
+  // Pulls the participant's own entry while registration is open. Two taps:
+  // the first arms a confirm state, the second actually deletes.
+  let confirmArmed = false;
+  let confirmTimer = null;
+  function resetUnregister() {
+    confirmArmed = false;
+    unregisterBtn.textContent = "unregister";
+    unregisterBtn.classList.remove("text-[#C0392B]", "font-geist-medium");
+  }
+  if (unregisterBtn) {
+    unregisterBtn.addEventListener("click", async () => {
+      if (!browserToken) return;
+      if (!confirmArmed) {
+        confirmArmed = true;
+        unregisterBtn.textContent = "tap to confirm";
+        unregisterBtn.classList.add("text-[#C0392B]", "font-geist-medium");
+        clearTimeout(confirmTimer);
+        confirmTimer = setTimeout(resetUnregister, 4000);
+        return;
+      }
+      clearTimeout(confirmTimer);
+      unregisterBtn.disabled = true;
+      unregisterBtn.textContent = "removing…";
+      try {
+        const r = await fetch(
+          `/api/events/${eventCode}/participants/me?token=${browserToken}`,
+          { method: "DELETE" }
+        );
+        if (r.ok || r.status === 404) {
+          // Gone (or already gone): drop the local token + draft and send
+          // them back to a fresh registration form.
+          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(`form_draft_${eventCode}`);
+          window.location.replace(`/register?event=${eventCode}`);
+          return;
+        }
+        let detail = `HTTP ${r.status}`;
+        try { const j = await r.json(); detail = j.detail || detail; } catch (_) {}
+        unregisterBtn.disabled = false;
+        unregisterBtn.textContent = detail;
+        setTimeout(resetUnregister, 2500);
+      } catch (_) {
+        unregisterBtn.disabled = false;
+        unregisterBtn.textContent = "failed — try again";
+        setTimeout(resetUnregister, 2500);
+      }
+    });
   }
 
   // ───── Share + QR ─────────────────────────────────────────────────────
