@@ -151,9 +151,11 @@
   }
 
   function getForcedJudge() {
-    // Default to "No" (false) when nothing has been selected yet.
+    // Statement is "I got the role I wanted last time" — "No" means they
+    // didn't, i.e. forced_judge_last is true. Default (nothing selected) is
+    // false.
     const v = fjSlider.dataset.value;
-    return v === "1";
+    return v === "0";
   }
 
   fjButtons.forEach((btn) => {
@@ -212,7 +214,7 @@
     if (typeof draft.special_request === "string") reqInput.value = draft.special_request;
     if (Number.isInteger(draft.experience)) setExperience(draft.experience);
     if (typeof draft.forced_judge_last === "boolean") {
-      setForcedJudge(draft.forced_judge_last ? 1 : 0);
+      setForcedJudge(draft.forced_judge_last ? 0 : 1);
     }
     if (Array.isArray(draft.language_sel)) applySelection("language", draft.language_sel);
     if (Array.isArray(draft.format_sel))   applySelection("format",   draft.format_sel);
@@ -232,7 +234,7 @@
       nameInput.value = p.name || "";
       reqInput.value  = p.special_request || "";
       setExperience(parseInt(p.experience, 10) || 1);
-      setForcedJudge(p.forced_judge_last ? 1 : 0);
+      setForcedJudge(p.forced_judge_last ? 0 : 1);
       applySelection("language", backendValueToPicks("language", p.language));
       applySelection("format",   backendValueToPicks("format",   p.format));
       applySelection("role",     backendValueToPicks("role",     p.role));
