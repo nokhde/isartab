@@ -411,14 +411,16 @@ def clear_slot(conn: sqlite3.Connection, slot_id: int) -> None:
 def assign_participant(
     conn: sqlite3.Connection, slot_id: int, participant_id: int
 ) -> None:
-    """Pin a person to a slot. If they sat in a different slot, vacate that
-    first (and unlock that vacated slot — see clear_slot)."""
+    """Pin a person to a slot and lock them there — a manual placement means
+    the admin wants them to stay, so magic fill must not move them. If they
+    sat in a different slot, vacate that first (and unlock that vacated
+    slot — see clear_slot)."""
     conn.execute(
         "UPDATE slots SET participant_id = NULL, locked = 0 WHERE participant_id = ?",
         (participant_id,),
     )
     conn.execute(
-        "UPDATE slots SET participant_id = ? WHERE id = ?",
+        "UPDATE slots SET participant_id = ?, locked = 1 WHERE id = ?",
         (participant_id, slot_id),
     )
 
@@ -427,9 +429,9 @@ def swap_slots(conn: sqlite3.Connection, slot_a: int, slot_b: int) -> None:
     """Exchange the occupants of two slots in a single transaction.
 
     Whatever each slot holds (a participant or nothing) ends up in the other.
-    Both slots are unlocked — a lock pins a *person to a position*, and a swap
-    breaks that intent (mirrors assign_participant, which unlocks on move).
-    Done in one request so the UI can't get stuck mid-swap.
+    A swap is a manual placement, so any slot that ends up occupied is locked
+    (mirrors assign_participant); a slot left empty is unlocked (see
+    clear_slot). Done in one request so the UI can't get stuck mid-swap.
     """
     a = conn.execute("SELECT participant_id FROM slots WHERE id = ?", (slot_a,)).fetchone()
     b = conn.execute("SELECT participant_id FROM slots WHERE id = ?", (slot_b,)).fetchone()
@@ -441,8 +443,14 @@ def swap_slots(conn: sqlite3.Connection, slot_a: int, slot_b: int) -> None:
         "UPDATE slots SET participant_id = NULL, locked = 0 WHERE id IN (?, ?)",
         (slot_a, slot_b),
     )
-    conn.execute("UPDATE slots SET participant_id = ? WHERE id = ?", (pb, slot_a))
-    conn.execute("UPDATE slots SET participant_id = ? WHERE id = ?", (pa, slot_b))
+    conn.execute(
+        "UPDATE slots SET participant_id = ?, locked = ? WHERE id = ?",
+        (pb, 1 if pb is not None else 0, slot_a),
+    )
+    conn.execute(
+        "UPDATE slots SET participant_id = ?, locked = ? WHERE id = ?",
+        (pa, 1 if pa is not None else 0, slot_b),
+    )
 
 
 def set_slot_locked(

@@ -97,10 +97,10 @@ def test_fill_remaining_respects_locked() -> None:
             "SELECT id FROM participants WHERE event_code = ? ORDER BY id LIMIT 1",
             (code,),
         ).fetchone()["id"]
-        solver.assign_participant(conn, target_slot_id, pid)
-        solver.set_slot_locked(conn, target_slot_id, True)
+        solver.assign_participant(conn, target_slot_id, pid)  # auto-locks
 
         # Also pre-fill an UNLOCKED slot — fill_remaining must vacate it.
+        # (assign_participant auto-locks, so explicitly unlock afterwards.)
         other_slot_id = state["rooms"][0]["slots"][1]["slot_id"]
         other_pid = conn.execute(
             "SELECT id FROM participants WHERE event_code = ? "
@@ -108,7 +108,7 @@ def test_fill_remaining_respects_locked() -> None:
             (code,),
         ).fetchone()["id"]
         solver.assign_participant(conn, other_slot_id, other_pid)
-        # not locked
+        solver.set_slot_locked(conn, other_slot_id, False)
 
         result = solver.fill_remaining(conn, code, time_limit_s=15.0)
 
@@ -209,7 +209,7 @@ def test_add_delete_room_roundtrip() -> None:
     print("  test3 ok: add/delete round-trip + cascade")
 
 
-# ─── Test 4: swap_slots exchanges occupants and clears locks ───────────────
+# ─── Test 4: swap_slots exchanges occupants; occupied slots stay locked ────
 def test_swap_slots() -> None:
     random.seed(4)
     ps = generate_participants(20)
@@ -221,21 +221,24 @@ def test_swap_slots() -> None:
         p1, p2 = [p[0] for p in solver._load_participants(conn, code)][:2]
         solver.assign_participant(conn, s1, p1)
         solver.assign_participant(conn, s2, p2)
-        solver.set_slot_locked(conn, s1, True)
 
         solver.swap_slots(conn, s1, s2)
         after = {x["slot_id"]: x for x in solver.get_rooms(conn, code)["rooms"][0]["slots"]}
         assert after[s1]["participant"]["id"] == p2
         assert after[s2]["participant"]["id"] == p1
-        assert after[s1]["locked"] is False and after[s2]["locked"] is False
+        # A swap is a manual placement — both occupied slots end up locked.
+        assert after[s1]["locked"] is True and after[s2]["locked"] is True
 
-        # Swapping with an empty slot is just a move.
+        # Swapping with an empty slot is just a move: the vacated slot is
+        # unlocked, the newly occupied one locked.
         empty = slots[2]["slot_id"]
         solver.swap_slots(conn, s1, empty)
         after2 = {x["slot_id"]: x for x in solver.get_rooms(conn, code)["rooms"][0]["slots"]}
         assert after2[s1]["participant"] is None
+        assert after2[s1]["locked"] is False
         assert after2[empty]["participant"]["id"] == p2
-    print("  test4 ok: swap_slots exchange + lock clear + empty move")
+        assert after2[empty]["locked"] is True
+    print("  test4 ok: swap_slots exchange + auto-lock + empty move")
 
 
 # ─── Smoke test: replicate legacy demo ─────────────────────────────────────

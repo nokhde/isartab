@@ -104,8 +104,10 @@ def submit_participant(
 
     # Defense in depth: the form caps `name` at 12 chars and
     # `special_request` at 60, both via maxlength — but anyone POSTing
-    # directly can bypass that. Truncate silently here too.
-    body.name = body.name[:12]
+    # directly can bypass that. Truncate here too, marking cut-off names
+    # with a trailing "..." so the truncation is visible.
+    if len(body.name) > 12:
+        body.name = body.name[:12] + "..."
     if body.special_request is not None:
         body.special_request = body.special_request[:60]
 

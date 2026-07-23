@@ -112,9 +112,9 @@ for r in state['rooms']:
 echo "  ${LOCKED}"
 [[ "${LOCKED}" == *locked* ]] || { echo "lock didn't stick"; exit 1; }
 
-echo "→ assign P02 to slot ${SECOND_SLOT_ID} (unlocked)"
+echo "→ assign P02 to slot ${SECOND_SLOT_ID} (explicitly unlocked — assign auto-locks)"
 curl -fsS -X PATCH -H 'Content-Type: application/json' \
-  -d "{\"participant_id\": ${P2_ID}}" \
+  -d "{\"participant_id\": ${P2_ID}, \"locked\": false}" \
   "${BASE}/api/admin/${ADMIN_TOKEN}/slots/${SECOND_SLOT_ID}" >/dev/null
 
 echo "→ magic-fill"

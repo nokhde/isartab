@@ -399,6 +399,13 @@ def delete_participant_endpoint(
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "Participant not in this event"
         )
+    # Drop the lock on any slot they occupied — ON DELETE SET NULL only
+    # clears participant_id, and a locked empty slot would keep showing a
+    # stale pin (see solver.clear_slot for the same rule).
+    conn.execute(
+        "UPDATE slots SET locked = 0 WHERE participant_id = ?",
+        (participant_id,),
+    )
     conn.execute(
         "DELETE FROM participants WHERE id = ? AND event_code = ?",
         (participant_id, event["code"]),
@@ -544,8 +551,12 @@ def recover_from_log_endpoint(
     recovered = 0
     for p in chosen_group:
         # Same defense-in-depth truncation as submit_participant, so a
-        # doctored paste can't exceed the form's stored lengths.
-        name = p.name[:12]
+        # doctored paste can't exceed the form's stored lengths. Uses the
+        # same >12 → cut + "..." rule, which round-trips names the log
+        # already stored with a "..." suffix unchanged.
+        name = p.name
+        if len(name) > 12:
+            name = name[:12] + "..."
         special_request = p.special_request[:60] if p.special_request else None
         try:
             db.insert_participant(

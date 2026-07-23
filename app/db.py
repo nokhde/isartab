@@ -325,7 +325,14 @@ def delete_participant_by_browser_token(
 ) -> None:
     """Remove a participant identified by their browser token (self-service
     unregister). Any slot they sat in becomes empty via ON DELETE SET NULL on
-    slots.participant_id — same teardown as the admin-side delete."""
+    slots.participant_id — same teardown as the admin-side delete. The slot's
+    lock is dropped explicitly: ON DELETE SET NULL leaves `locked` untouched,
+    and a locked empty slot would keep showing a stale pin."""
+    conn.execute(
+        "UPDATE slots SET locked = 0 WHERE participant_id = "
+        "(SELECT id FROM participants WHERE event_code = ? AND browser_token = ?)",
+        (event_code, browser_token),
+    )
     conn.execute(
         "DELETE FROM participants WHERE event_code = ? AND browser_token = ?",
         (event_code, browser_token),
