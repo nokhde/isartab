@@ -66,10 +66,16 @@ def created_page(
 # ─── Participant shell pages (cacheable, event-agnostic) ───────────────────
 @router.get("/register", response_class=HTMLResponse)
 def register_page(request: Request) -> Response:
-    """Static shell — JS reads ?event=… at runtime. SW caches this."""
+    """Static shell — JS reads ?event=… at runtime. SW caches this.
+
+    `no-cache` (revalidate, don't serve blind) rather than a max-age: the
+    shell changes on every deploy, and a fresh-by-age copy in the browser's
+    HTTP cache would otherwise be handed to the service worker's revalidation
+    fetch and written back over the cached shell, pinning it to the old build.
+    """
     return templates.TemplateResponse(
         request, "register.html", {},
-        headers={"Cache-Control": "max-age=300"},
+        headers={"Cache-Control": "no-cache"},
     )
 
 
