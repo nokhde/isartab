@@ -55,6 +55,32 @@ W_PURE_JUDGE_AS_SPEAKER = 35
 # W_PURE_JUDGE_AS_SPEAKER so a J→speaker reassignment wins over an empty
 # speaker slot in BP rooms.
 W_EMPTY_BP_SPEAKER = 50
+# Cost per unfilled OPD Gov/Opp speaker position. Deliberately higher than
+# W_EMPTY_BP_SPEAKER: previously only BP had *any* penalty for an unfilled
+# speaker slot, which systematically favored leaving OPD rooms short over
+# BP rooms whenever the solver had slack. Gov/Opp are OPD's mandatory
+# slots (the equivalent of BP's OG/OO/CG/CO), so they get the harsher
+# per-slot cost.
+W_OPD_GOV_OPP_EMPTY = 70
+# Cost per point of deviation (either direction) from OPD_FREE_DEFAULT free
+# speakers in an OPD room: cost = W_OPD_FREE_DEV * abs(3 - num_free_speakers).
+# Deliberately low — Free speakers are a "nice to have", not a required
+# chair — so this never outweighs W_OPD_GOV_OPP_EMPTY or W_EMPTY_BP_SPEAKER.
+W_OPD_FREE_DEV = 10
+
+# Chair = the first/most-senior judge in a room (Panelist subrole). Rule 1
+# ("if there are ≥2 judges, the more experienced one goes first") is not a
+# cost — it is enforced as a hard rule in phase 1 (see
+# `_split_judges_into_slots`) and as an explicit cost in phase 2's mini-CP,
+# since phase 2 assigns straight into fixed Panelist/Judge slots and has no
+# equivalent post-processing pass. Rule 2 (the chair's own experience
+# level should be as high as possible) is a straightforward cost in both
+# phases — bigger punishment the less experienced the eventual chair is.
+W_CHAIR_EXP_1 = 40   # chair's experience == 1 (least experienced)
+W_CHAIR_EXP_2 = 15   # chair's experience == 2 — smaller than W_CHAIR_EXP_1
+# Phase-2-only: a less-experienced judge ends up chairing while a
+# more-experienced fellow judge sits as a plain judge in the same room.
+W_CHAIR_ORDER = 100
 
 BP_IDEAL_SPEAKERS = len(["OG", "OG", "OO", "OO", "CG", "CG", "CO", "CO"])  # 8
 
@@ -98,6 +124,21 @@ def solve_assignment(
         model.AddExactlyOne(assign[p, r] for r in R)
         for r in R:
             model.AddImplication(speaker_in[p, r], assign[p, r])
+
+    # is_judge[p, r]: assigned to room r AND not speaking there == judging.
+    # Used by the chair-experience cost below (need to know, per room,
+    # which assigned participants are judges).
+    is_judge = {}
+    for p in P:
+        for r in R:
+            ij = model.NewBoolVar(f"ij_{p}_{r}")
+            model.AddBoolAnd(
+                [assign[p, r], speaker_in[p, r].Not()]
+            ).OnlyEnforceIf(ij)
+            model.AddBoolOr(
+                [assign[p, r].Not(), speaker_in[p, r]]
+            ).OnlyEnforceIf(ij.Not())
+            is_judge[p, r] = ij
 
     # Note: pure judges (role="J") were previously *hard-banned* from
     # speaker positions. We now allow it with a high cost (see cost_terms
@@ -211,6 +252,64 @@ def solve_assignment(
         model.Add(bp_under_r == pos_diff_r).OnlyEnforceIf(bp_used)
         model.Add(bp_under_r == 0).OnlyEnforceIf(bp_used.Not())
         cost_terms.append(W_EMPTY_BP_SPEAKER * bp_under_r)
+
+        # NEW: OPD's Gov/Opp mandatory chairs (3+3=6 seats) are covered by
+        # the hard `speakers >= MIN_SPEAKER` (6) constraint above whenever a
+        # room is used, so — unlike BP — they can never actually end up
+        # empty here; the only thing phase 1 can still get "wrong" is how
+        # many *extra* speakers become Free. Two-sided: too few OR too many
+        # Free speakers both cost, matching W_OPD_FREE_DEV * abs(3 - count).
+        opd_used = model.NewBoolVar(f"opd_used_{r}")
+        model.AddBoolAnd([is_opd[r], room_used[r]]).OnlyEnforceIf(opd_used)
+        model.AddBoolOr([is_opd[r].Not(), room_used[r].Not()]).OnlyEnforceIf(opd_used.Not())
+
+        free_count_r = model.NewIntVar(
+            -HARD_MAX_ROOM_SIZE, HARD_MAX_ROOM_SIZE, f"free_{r}"
+        )
+        model.Add(free_count_r == speakers_r - len(OPD_SPEAKER_SUBROLES))
+        diff_free_r = model.NewIntVar(
+            -HARD_MAX_ROOM_SIZE, HARD_MAX_ROOM_SIZE, f"dfree_{r}"
+        )
+        model.Add(diff_free_r == free_count_r - OPD_FREE_DEFAULT)
+        dev_free_r = model.NewIntVar(0, HARD_MAX_ROOM_SIZE, f"devfree_{r}")
+        model.AddAbsEquality(dev_free_r, diff_free_r)
+
+        opd_free_pen_r = model.NewIntVar(0, HARD_MAX_ROOM_SIZE, f"ofp_{r}")
+        model.Add(opd_free_pen_r == dev_free_r).OnlyEnforceIf(opd_used)
+        model.Add(opd_free_pen_r == 0).OnlyEnforceIf(opd_used.Not())
+        cost_terms.append(W_OPD_FREE_DEV * opd_free_pen_r)
+
+    # ─── Chair (highest-experience judge) preference ───────────────────
+    # Rule 1 ("more experienced judge goes first") is guaranteed by
+    # `_split_judges_into_slots`, which always seats the highest-experience
+    # judge assigned to a room as its Panelist/chair — nothing to add here.
+    # Rule 2: penalize rooms whose *best available* judge is still
+    # low-experience, so the solver prefers groupings that give every room
+    # a more senior chair when that's possible.
+    for r in R:
+        gt2_lits = [is_judge[p, r] for p in P if int(participants[p][5]) > 2]
+        has_exp_gt2 = model.NewBoolVar(f"hgt2_{r}")
+        if gt2_lits:
+            model.AddMaxEquality(has_exp_gt2, gt2_lits)
+        else:
+            model.Add(has_exp_gt2 == 0)
+
+        gt1_lits = [is_judge[p, r] for p in P if int(participants[p][5]) > 1]
+        has_exp_gt1 = model.NewBoolVar(f"hgt1_{r}")
+        if gt1_lits:
+            model.AddMaxEquality(has_exp_gt1, gt1_lits)
+        else:
+            model.Add(has_exp_gt1 == 0)
+
+        # chair exp == 1  <=>  room used AND no assigned judge has exp > 1.
+        chair_is_1 = _and_bool(f"chair1_{r}", [room_used[r], has_exp_gt1.Not()])
+        # chair exp == 2  <=>  room used AND no judge exp > 2, but at least
+        # one has exp > 1 (i.e. exactly 2 is the best available).
+        chair_is_2 = _and_bool(
+            f"chair2_{r}", [room_used[r], has_exp_gt2.Not(), has_exp_gt1]
+        )
+        cost_terms.append(W_CHAIR_EXP_1 * chair_is_1)
+        cost_terms.append(W_CHAIR_EXP_2 * chair_is_2)
 
     model.Minimize(sum(cost_terms))
 
@@ -609,6 +708,9 @@ def fill_remaining(
     if not state["rooms"]:
         raise ValueError("No rooms exist yet — call propose_rooms() (or add_room()) first.")
 
+    # Safe upper bound for experience-valued IntVars below (chair cost).
+    max_exp = max((int(p[5]) for _pid, p in parts_with_ids), default=5)
+
     placed = {s["participant"]["id"]
               for room in state["rooms"] for s in room["slots"]
               if s["participant"]}
@@ -689,6 +791,134 @@ def fill_remaining(
             model.Add(slot_filled == 0).OnlyEnforceIf(slot_empty)
             model.Add(slot_filled == 1).OnlyEnforceIf(slot_empty.Not())
             cost_terms.append(W_EMPTY_BP_SPEAKER * slot_empty)
+
+    # NEW: OPD equivalent, so OPD rooms aren't systematically left shorter
+    # than BP ones just because only BP used to be penalized. Gov/Opp are
+    # mandatory chairs (like BP's OG/OO/CG/CO) and cost per empty slot,
+    # harder than BP. Free speakers are optional and get a light, two-sided
+    # deviation-from-3 cost instead of a flat per-slot cost.
+    for j, (_sid, room, srole, sub) in enumerate(open_slots):
+        if room["format"] == "OPD" and srole == "speaker" and sub in ("Gov", "Opp"):
+            slot_filled = sum(x[i, j] for i in range(n))
+            slot_empty = model.NewBoolVar(f"oe_{j}")
+            model.Add(slot_filled == 0).OnlyEnforceIf(slot_empty)
+            model.Add(slot_filled == 1).OnlyEnforceIf(slot_empty.Not())
+            cost_terms.append(W_OPD_GOV_OPP_EMPTY * slot_empty)
+
+    opd_room_ids = {room["room_id"] for room in state["rooms"] if room["format"] == "OPD"}
+    for rid in opd_room_ids:
+        room = next(r for r in state["rooms"] if r["room_id"] == rid)
+        locked_free = sum(
+            1 for s in room["slots"]
+            if s["role"] == "speaker" and s["subrole"] == OPD_FREE_SUBROLE
+            and s["participant"] is not None
+        )
+        open_free_js = [
+            j for j, (_sid, oroom, srole, sub) in enumerate(open_slots)
+            if oroom["room_id"] == rid and srole == "speaker" and sub == OPD_FREE_SUBROLE
+        ]
+        if not open_free_js:
+            # Nothing left to fill here this round — the count (and thus
+            # the deviation) can't change, so it doesn't belong in the cost.
+            continue
+        newly_filled = sum(x[i, j] for i in range(n) for j in open_free_js)
+        total_free = model.NewIntVar(0, HARD_MAX_ROOM_SIZE, f"tf_{rid}")
+        model.Add(total_free == locked_free + newly_filled)
+        diff_free = model.NewIntVar(-HARD_MAX_ROOM_SIZE, HARD_MAX_ROOM_SIZE, f"df_{rid}")
+        model.Add(diff_free == total_free - OPD_FREE_DEFAULT)
+        dev_free = model.NewIntVar(0, HARD_MAX_ROOM_SIZE, f"devf_{rid}")
+        model.AddAbsEquality(dev_free, diff_free)
+        cost_terms.append(W_OPD_FREE_DEV * dev_free)
+
+    # ─── Chair (highest-experience judge) preference, phase 2 ─────────
+    # Phase 1's `_split_judges_into_slots` post-pass guarantees rule 1 for
+    # freshly-proposed rooms, but phase 2 assigns straight into the fixed
+    # Panelist/Judge slots left over from phase 1 (or add_room/add_judge_slot),
+    # so nothing enforces rule 1 here unless we add it explicitly.
+    for room in state["rooms"]:
+        rid = room["room_id"]
+        panelist_locked_exp = None
+        panelist_open_j = None
+        other_locked_exps: list[int] = []
+        other_open_js: list[int] = []
+
+        for s in room["slots"]:
+            if s["role"] != "judge":
+                continue
+            if s["subrole"] == JUDGE_PANELIST:
+                if s["participant"] is not None:
+                    panelist_locked_exp = int(s["participant"]["experience"])
+            elif s["participant"] is not None:
+                other_locked_exps.append(int(s["participant"]["experience"]))
+
+        for j, (_sid, oroom, srole, sub) in enumerate(open_slots):
+            if oroom["room_id"] != rid or srole != "judge":
+                continue
+            if sub == JUDGE_PANELIST:
+                panelist_open_j = j
+            else:
+                other_open_js.append(j)
+
+        if panelist_open_j is None:
+            # Chair already fixed (or this room has no Panelist slot at
+            # all) — can't change who chairs, but a fixed, less-experienced
+            # chair should still discourage seating an even-more-experienced
+            # person as a mere judge in the same room.
+            if panelist_locked_exp is not None:
+                for i, (_pid, p) in enumerate(unplaced):
+                    if int(p[5]) > panelist_locked_exp:
+                        for jo in other_open_js:
+                            cost_terms.append(W_CHAIR_ORDER * x[i, jo])
+            continue
+
+        jp = panelist_open_j
+
+        # Rule 2: the chair's own experience level.
+        for i, (_pid, p) in enumerate(unplaced):
+            exp_i = int(p[5])
+            if exp_i == 1:
+                cost_terms.append(W_CHAIR_EXP_1 * x[i, jp])
+            elif exp_i == 2:
+                cost_terms.append(W_CHAIR_EXP_2 * x[i, jp])
+
+        # Rule 1 vs. an already-seated (locked) fellow judge: don't let the
+        # newly-seated chair be outranked by someone already in the room.
+        if other_locked_exps:
+            best_locked = max(other_locked_exps)
+            for i, (_pid, p) in enumerate(unplaced):
+                if int(p[5]) < best_locked:
+                    cost_terms.append(W_CHAIR_ORDER * x[i, jp])
+
+        # Rule 1 vs. other open judge slots in the same room: whoever ends
+        # up chairing should be at least as experienced as whoever ends up
+        # as a plain judge here. Modeled with IntVars (not pairwise bools)
+        # to avoid an O(n²) blow-up when there are several candidates.
+        if other_open_js:
+            chair_exp_var = model.NewIntVar(0, max_exp, f"cexp_{rid}")
+            model.Add(chair_exp_var == sum(int(unplaced[i][1][5]) * x[i, jp] for i in range(n)))
+
+            other_exp_terms = list(other_locked_exps)
+            for jo in other_open_js:
+                oexp_var = model.NewIntVar(0, max_exp, f"oexp_{rid}_{jo}")
+                model.Add(oexp_var == sum(int(unplaced[i][1][5]) * x[i, jo] for i in range(n)))
+                other_exp_terms.append(oexp_var)
+
+            other_max_var = model.NewIntVar(0, max_exp, f"omax_{rid}")
+            model.AddMaxEquality(other_max_var, other_exp_terms)
+
+            chair_filled = model.NewBoolVar(f"cf_{rid}")
+            model.Add(sum(x[i, jp] for i in range(n)) == 1).OnlyEnforceIf(chair_filled)
+            model.Add(sum(x[i, jp] for i in range(n)) == 0).OnlyEnforceIf(chair_filled.Not())
+
+            shortfall = model.NewIntVar(-max_exp, max_exp, f"short_{rid}")
+            model.Add(shortfall == other_max_var - chair_exp_var)
+            pos_shortfall = model.NewIntVar(0, max_exp, f"psh_{rid}")
+            model.AddMaxEquality(pos_shortfall, [shortfall, 0])
+
+            order_pen = model.NewIntVar(0, max_exp, f"ordpen_{rid}")
+            model.Add(order_pen == pos_shortfall).OnlyEnforceIf(chair_filled)
+            model.Add(order_pen == 0).OnlyEnforceIf(chair_filled.Not())
+            cost_terms.append(W_CHAIR_ORDER * order_pen)
 
     model.Minimize(sum(cost_terms))
     solver = cp_model.CpSolver()
