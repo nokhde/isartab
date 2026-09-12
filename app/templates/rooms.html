@@ -82,14 +82,14 @@
         </p>
       {% else %}
         {# Reusable name pill — highlighted when it's the current user. #}
-        {% macro name_pill(slot, my_pid) %}
+        {% macro name_pill(slot, my_pid, is_chair=false) %}
           {% set p = slot.participant %}
           {% set mine = p and my_pid and p.id == my_pid %}
           {% if p %}
             {% if mine %}
-              <span class="inline-block self-start text-[16px] font-geist-mono-regular text-[#C76B00] bg-[#FFD200] px-1.5 py-0.5 -mx-1.5 rounded-[4px] leading-none mb-1 whitespace-nowrap overflow-hidden max-w-[calc(100%+0.75rem)]">{{ p.name }}</span>
+              <span class="inline-block self-start text-[16px] font-geist-mono-regular text-[#C76B00] bg-[#FFD200] px-1.5 py-0.5 -mx-1.5 rounded-[4px] leading-none mb-1 whitespace-nowrap overflow-hidden max-w-[calc(100%+0.75rem)]">{{ p.name }}{% if is_chair %} Ⓒ{% endif %}</span>
             {% else %}
-              <span class="block text-[16px] font-geist-mono-regular text-[#191919] leading-none mb-1 whitespace-nowrap overflow-hidden max-w-full">{{ p.name }}</span>
+              <span class="block text-[16px] font-geist-mono-regular text-[#191919] leading-none mb-1 whitespace-nowrap overflow-hidden max-w-full">{{ p.name }}{% if is_chair %} Ⓒ{% endif %}</span>
             {% endif %}
           {% else %}
             <span class="block text-[16px] font-geist-mono-regular text-black/25 italic leading-none mb-1 whitespace-nowrap overflow-hidden max-w-full">empty</span>
@@ -122,7 +122,7 @@
                   <div class="flex flex-col items-start justify-start mt-2 pt-2 p-1 pl-4 bg-black/[0.05] rounded-[18px]">
                     <span class="text-[13px] text-black/45 font-geist-light tracking-wider mb-1.5">Judges</span>
                     {% for slot in room.slots if slot.role == "judge" %}
-                      {{ name_pill(slot, my_participant_id) }}
+                      {{ name_pill(slot, my_participant_id, loop.first) }}
                     {% endfor %}
                   </div>
                   <div class="flex flex-col items-start justify-start mt-2 ml-2">
@@ -151,7 +151,7 @@
                   <div class="grid grid-cols-2 gap-1 w-full">
                     <div>
                       {% for slot in judge_slots[:half] %}
-                        {{ name_pill(slot, my_participant_id) }}
+                        {{ name_pill(slot, my_participant_id, loop.first) }}
                       {% endfor %}
                     </div>
                     <div>
