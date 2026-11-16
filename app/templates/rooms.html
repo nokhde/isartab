@@ -57,6 +57,16 @@
         registration still open
       {% endif %}
     </div>
+    {% if event_status == "published" and rooms %}
+      <a href="/timeturner"
+         class="mt-4 inline-flex h-12 items-center justify-center gap-2.5 rounded-xl bg-[#333] px-4 font-geist-mono-medium text-sm text-white shadow-sm transition-colors hover:bg-[#555] active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#191919]">
+        <svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5 shrink-0 fill-none stroke-[#FFD200]" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 7v5l3 2"/>
+        </svg>
+        Time the debate
+      </a>
+    {% endif %}
   </div>
 
   <!-- Scrollable list of rooms.
