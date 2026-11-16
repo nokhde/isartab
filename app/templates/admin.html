@@ -228,6 +228,39 @@
     </div>
   </div>
 
+  <!-- Forced deadline prompt: shown after the first-visit popup while an
+       open event has no registration deadline. No cancel, no Escape, no
+       backdrop click — it closes once a deadline is saved. -->
+  <div class="modal-backdrop" x-show="needsDeadline()" x-cloak>
+    <div class="modal" role="dialog" aria-labelledby="m-deadline-title" aria-modal="true">
+      <h2 id="m-deadline-title">Set a registration deadline</h2>
+      <p class="muted">
+        Participants see a countdown to it. You can still change it later
+        in the top bar.
+      </p>
+
+      <template x-if="suggestedDeadline()">
+        <div>
+          <button class="primary deadline-suggested" @click="setSuggestedDeadline()" :disabled="loading">
+            Set today, 19:10 as deadline
+          </button>
+          <p class="deadline-or">or</p>
+        </div>
+      </template>
+
+      <form @submit.prevent="setCustomDeadline()">
+        <h3 class="url-block__h">Set custom deadline</h3>
+        <div class="deadline-custom">
+          <input type="datetime-local" x-model="customDeadlineInput" required>
+          <button type="submit" :class="{ primary: !suggestedDeadline() }"
+                  :disabled="loading || !customDeadlineInput">Set</button>
+        </div>
+      </form>
+
+      <p class="deadline-error" x-show="errorMsg" x-text="errorMsg"></p>
+    </div>
+  </div>
+
   <!-- Add Room dialog -->
   <div class="modal-backdrop" x-show="addRoomOpen" x-cloak @click.self="addRoomOpen = false">
     <div class="modal" role="dialog" aria-labelledby="m-room-title" aria-modal="true">

@@ -611,6 +611,20 @@ textarea:focus-visible, select:focus-visible {
   user-select: all;
 }
 
+/* Forced deadline prompt. */
+.deadline-suggested { display: block; width: 100%; margin-top: 1rem; padding: .55rem 1rem; }
+.deadline-or {
+  margin: .9rem 0 0; text-align: center;
+  color: #6b6b70; font-size: .8rem; text-transform: uppercase; letter-spacing: .08em;
+}
+.deadline-custom { display: flex; gap: .5rem; align-items: center; margin-top: .35rem; }
+.deadline-custom input {
+  flex: 1; min-width: 0;
+  font: inherit; padding: .35rem .5rem; border-radius: 6px;
+  border: 1px solid #c9c9cf;
+}
+.modal p.deadline-error { color: #b00020; font-size: .85rem; margin-top: .75rem; }
+
 /* Recover-from-log dialog: wider, with a big paste area. */
 .modal--wide { max-width: 720px; }
 .recover-box {

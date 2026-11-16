@@ -33,6 +33,7 @@ function adminPanel(adminToken) {
     loadingMsg: null,
     errorMsg: null,
     deadlineInput: "",
+    customDeadlineInput: "",
     countdownTick: 0,
     _interval: null,
     // Serialize mutations so responses can never apply out of order. Without
@@ -142,18 +143,22 @@ function adminPanel(adminToken) {
 
     applyState(state) {
       this.event = state.event;
-      // Surface participants with a special request at the top of the list —
-      // they're the ones the tabmaster needs to eyeball. Array.sort is stable,
-      // so the server's original order is preserved within each group.
-      this.participants = [...state.participants].sort(
-        (a, b) => (b.special_request ? 1 : 0) - (a.special_request ? 1 : 0)
-      );
       this.rooms = state.rooms;
       const ids = new Set();
       for (const r of state.rooms)
         for (const s of r.slots)
           if (s.participant) ids.add(s.participant.id);
       this.assignedIds = ids;
+      // Unassigned participants first (they still need a slot), already
+      // placed ones sink to the bottom. Within each group, participants with
+      // a special request come first — they're the ones the tabmaster needs
+      // to eyeball. Array.sort is stable, so the server's original order is
+      // preserved within each group.
+      this.participants = [...state.participants].sort(
+        (a, b) =>
+          (ids.has(a.id) ? 1 : 0) - (ids.has(b.id) ? 1 : 0) ||
+          (b.special_request ? 1 : 0) - (a.special_request ? 1 : 0)
+      );
       if (state.event.reg_deadline) {
         const d = new Date(state.event.reg_deadline * 1000);
         // datetime-local wants "YYYY-MM-DDTHH:MM"
@@ -341,6 +346,42 @@ function adminPanel(adminToken) {
     dismissFirstVisit() {
       localStorage.setItem(`admin_seen_${this.adminToken}`, "1");
       this.firstVisit = false;
+    },
+
+    // ───── Forced deadline prompt ────────────────────────────────────────
+    // Keyed on server state (not localStorage), so it also shows for older
+    // events without a deadline and on every admin's device. It closes by
+    // itself once applyState() sees a reg_deadline.
+    needsDeadline() {
+      return !!this.event && this.event.status === "open" &&
+        !this.event.reg_deadline && !this.firstVisit;
+    },
+
+    // Today at 19:10, or null once that has passed. Reads countdownTick so
+    // the suggestion disappears live if 19:10 passes while the popup is open.
+    suggestedDeadline() {
+      void this.countdownTick;
+      const d = new Date();
+      d.setHours(19, 10, 0, 0);
+      return d.getTime() > Date.now() ? d : null;
+    },
+
+    async setSuggestedDeadline() {
+      const d = this.suggestedDeadline();
+      if (!d) return;
+      this.errorMsg = null;
+      await this.send("PATCH", "/event", { reg_deadline: Math.floor(d.getTime() / 1000) });
+    },
+
+    async setCustomDeadline() {
+      const ms = new Date(this.customDeadlineInput).getTime();
+      if (Number.isNaN(ms)) return;
+      if (ms <= Date.now()) {
+        this.errorMsg = "Pick a time in the future.";
+        return;
+      }
+      this.errorMsg = null;
+      await this.send("PATCH", "/event", { reg_deadline: Math.floor(ms / 1000) });
     },
 
     onEscape() {
