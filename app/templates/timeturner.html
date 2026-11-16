@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Timeturner · Isartab</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/timeturner.css">
+  <script src="/static/js/timeturner.js" defer></script>
+</head>
+<body>
+  <header class="toolbar">
+    <div class="formats" role="group" aria-label="Debate format">
+      <button id="bp" type="button" aria-pressed="true">BP</button>
+      <button id="opd" type="button" aria-pressed="false">OPD</button>
+    </div>
+    <div class="tools">
+      <button id="open-sound" type="button">Sound</button>
+      <button id="open-settings" type="button">Settings</button>
+    </div>
+  </header>
+
+  <main id="timer-panel">
+    <div class="speaker-navigation">
+      <button id="previous" class="arrow" type="button" aria-label="Previous speaker" disabled>‹</button>
+      <div class="speaker" aria-live="polite" aria-atomic="true">
+        <p id="speaker-index">Speaker 1 of 8</p>
+        <h1 id="speaker-name">Prime Minister</h1>
+      </div>
+      <button id="next" class="arrow" type="button" aria-label="Next speaker">›</button>
+    </div>
+
+    <div id="countdown" role="timer" aria-label="Speech time remaining">7:15</div>
+    <p id="phase" role="status" data-phase="0">Protected time</p>
+    <div class="timeline" aria-hidden="true">
+      <span></span><span></span><span></span><span></span>
+    </div>
+
+    <div class="controls">
+      <button id="toggle" class="primary" type="button">Start</button>
+      <button id="poi" type="button" aria-label="Start point of information" disabled>POI</button>
+      <button id="reset" type="button" disabled>Reset</button>
+    </div>
+    <p id="poi-status" class="sr-only" role="status"></p>
+    <p id="audio-status" role="status" hidden></p>
+  </main>
+
+  <dialog id="sound" aria-labelledby="sound-title">
+    <form method="dialog">
+      <h2 id="sound-title">Sound</h2>
+      <label for="volume">Bell volume <output id="volume-value" for="volume">70%</output></label>
+      <input id="volume" type="range" min="0" max="100" value="70">
+      <p id="sound-error" role="status" hidden></p>
+      <div class="dialog-actions">
+        <button id="test-bell" type="button">Test bell</button>
+        <button class="primary" value="done">Done</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settings" aria-labelledby="settings-title">
+    <form id="settings-form">
+      <h2 id="settings-title">Timer settings</h2>
+      <label for="speech-duration">Speech duration <small>(minutes:seconds)</small></label>
+      <input id="speech-duration" type="text" value="7:00" required pattern="[0-9]{1,3}:[0-5][0-9]" aria-describedby="speech-note">
+      <p id="speech-note">The first and last minute are protected.</p>
+      <label for="grace-duration">Grace period <small>(seconds)</small></label>
+      <input id="grace-duration" type="number" min="1" max="599" required value="15">
+      <div id="opd-settings" hidden>
+        <label for="free-speakers">OPD free speakers</label>
+        <input id="free-speakers" type="number" min="0" step="1" required value="3">
+        <p>Each free speaker has 3:30 plus the grace period.</p>
+      </div>
+      <p id="settings-note">Saving changes resets the current timer.</p>
+      <div class="dialog-actions">
+        <button id="cancel-settings" type="button">Cancel</button>
+        <button class="primary" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

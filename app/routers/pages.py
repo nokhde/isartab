@@ -87,6 +87,11 @@ def waiting_page(request: Request) -> Response:
     )
 
 
+@router.get("/timeturner", response_class=HTMLResponse)
+def timeturner_page() -> FileResponse:
+    return FileResponse(TEMPLATES_DIR / "timeturner.html", media_type="text/html")
+
+
 # ─── Public room view (SSR — needs DB state) ───────────────────────────────
 @router.get("/rooms", response_class=HTMLResponse)
 def rooms_page(
