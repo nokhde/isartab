@@ -19,11 +19,17 @@ const opdOpeningSpeakers = [
 const phases = ["Protected time", "Unprotected time", "Protected time", "Grace period", "Time is up"];
 const poiDuration = 15_000;
 const preferenceKey = "isartab.timeturner";
-const defaults = { speech: 420, grace: 15, freeSpeakers: 3, volume: 70, format: "bp" };
+const defaults = {
+  speech: 420, protection: [60, 60], grace: 15,
+  freeSpeech: 210, freeProtection: [60, 30], freeGrace: 15,
+  freeSpeakers: 3, volume: 70, format: "bp",
+};
 
 const byId = (id) => document.getElementById(id);
 const timerPanel = byId("timer-panel");
-const countdown = byId("countdown");
+const formatSlider = byId("format-slider");
+const speechClock = byId("speech-clock");
+const speaker = byId("speaker");
 const phase = byId("phase");
 const segments = document.querySelectorAll(".timeline span");
 const toggle = byId("toggle");
@@ -35,7 +41,12 @@ const soundDialog = byId("sound");
 const settingsDialog = byId("settings");
 const speechInput = byId("speech-duration");
 const graceInput = byId("grace-duration");
+const freeSpeechInput = byId("free-speech-duration");
+const freeGraceInput = byId("free-grace-duration");
 const freeSpeakersInput = byId("free-speakers");
+const protectionInputs = [byId("opening-protection"), byId("closing-protection")];
+const freeProtectionInputs = [byId("free-opening-protection"), byId("free-closing-protection")];
+const settingsForm = byId("settings-form");
 const volumeInput = byId("volume");
 const testBell = byId("test-bell");
 
@@ -43,13 +54,30 @@ function wholeNumber(value, min, max = Number.MAX_SAFE_INTEGER) {
   return Number.isSafeInteger(value) && value >= min && value <= max;
 }
 
+function validProtection(values, speech) {
+  return Array.isArray(values) && values.length === 2 &&
+    wholeNumber(values[0], 1) && wholeNumber(values[1], 1) && values[0] + values[1] < speech;
+}
+
 function loadPreferences() {
   try {
     const stored = JSON.parse(localStorage.getItem(preferenceKey));
     if (stored) {
+      let speech = wholeNumber(stored.speech, 3, 59_999) ? stored.speech : defaults.speech;
+      const protection = validProtection(stored.protection, speech) ? stored.protection : defaults.protection;
+      if (!validProtection(protection, speech)) speech = defaults.speech;
+      let freeSpeech = wholeNumber(stored.freeSpeech, 3, 59_999) ? stored.freeSpeech : defaults.freeSpeech;
+      const freeProtection = validProtection(stored.freeProtection, freeSpeech)
+        ? stored.freeProtection : defaults.freeProtection;
+      if (!validProtection(freeProtection, freeSpeech)) freeSpeech = defaults.freeSpeech;
+      const grace = wholeNumber(stored.grace, 1, 599) ? stored.grace : defaults.grace;
       return {
-        speech: wholeNumber(stored.speech, 121, 59_999) ? stored.speech : defaults.speech,
-        grace: wholeNumber(stored.grace, 1, 599) ? stored.grace : defaults.grace,
+        speech,
+        protection,
+        grace,
+        freeSpeech,
+        freeProtection,
+        freeGrace: wholeNumber(stored.freeGrace, 1, 599) ? stored.freeGrace : grace,
         freeSpeakers: wholeNumber(stored.freeSpeakers, 0, Number.MAX_SAFE_INTEGER - 6)
           ? stored.freeSpeakers : defaults.freeSpeakers,
         volume: wholeNumber(stored.volume, 0, 100) ? stored.volume : defaults.volume,
@@ -110,9 +138,9 @@ function clockTime(seconds) {
 
 function renderClock(now) {
   const activePhase = nextCue;
-  const remaining = clockTime(Math.ceil((boundaries[3] - elapsed) / 1000));
-  if (countdown.textContent !== remaining) countdown.textContent = remaining;
-  countdown.classList.toggle("long-duration", remaining.length > 5);
+  const elapsedText = clockTime(Math.floor(elapsed / 1000));
+  if (speechClock.textContent !== elapsedText) speechClock.textContent = elapsedText;
+  speechClock.classList.toggle("long-duration", elapsedText.length > 5);
   if (phase.dataset.phase !== String(activePhase)) {
     phase.dataset.phase = activePhase;
     phase.textContent = phases[activePhase];
@@ -139,10 +167,13 @@ function renderClock(now) {
 }
 
 function renderSpeaker() {
+  for (const animation of speaker.getAnimations()) animation.cancel();
+  speaker.parentElement.querySelector(".speaker-outgoing")?.remove();
   byId("speaker-name").textContent = currentSpeaker();
   byId("speaker-index").textContent = `Speaker ${speakerIndex + 1} of ${speakerCount()}`;
   previous.disabled = speakerIndex === 0;
   next.disabled = speakerIndex === speakerCount() - 1;
+  formatSlider.dataset.format = preferences.format;
   for (const format of ["bp", "opd"]) {
     byId(format).setAttribute("aria-pressed", String(format === preferences.format));
   }
@@ -156,9 +187,11 @@ function resetClock() {
   nextCue = 0;
   poiEndsAt = null;
   deferredCues = [];
-  const speech = isFreeSpeaker() ? 210 : preferences.speech;
-  const closingProtection = isFreeSpeaker() ? 30 : 60;
-  boundaries = [60, speech - closingProtection, speech, speech + preferences.grace]
+  const free = isFreeSpeaker();
+  const speech = free ? preferences.freeSpeech : preferences.speech;
+  const [opening, closing] = free ? preferences.freeProtection : preferences.protection;
+  const grace = free ? preferences.freeGrace : preferences.grace;
+  boundaries = [opening, speech - closing, speech, speech + grace]
     .map((seconds) => seconds * 1000);
   byId("poi-status").textContent = "";
   renderClock(performance.now());
@@ -167,9 +200,30 @@ function resetClock() {
 function changeSpeaker(direction) {
   const target = speakerIndex + direction;
   if (target < 0 || target >= speakerCount()) return;
+  const animate = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const outgoing = animate ? speaker.cloneNode(true) : null;
   speakerIndex = target;
   resetClock();
   renderSpeaker();
+
+  if (outgoing) {
+    outgoing.removeAttribute("id");
+    outgoing.removeAttribute("aria-live");
+    outgoing.setAttribute("aria-hidden", "true");
+    outgoing.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
+    outgoing.classList.add("speaker-outgoing");
+    speaker.before(outgoing);
+
+    const timing = { duration: 360, easing: "cubic-bezier(0.22, 1, 0.36, 1)" };
+    outgoing.animate([
+      { transform: "translateX(0)", opacity: 1 },
+      { transform: `translateX(${-direction * 75}%)`, opacity: 0 },
+    ], timing).onfinish = () => outgoing.remove();
+    speaker.animate([
+      { transform: `translateX(${direction * 75}%)`, opacity: 0 },
+      { transform: "translateX(0)", opacity: 1 },
+    ], timing);
+  }
 }
 
 async function enableAudio() {
@@ -204,22 +258,26 @@ function cancelBells() {
 function ring(count) {
   if (!bellAvailable) return;
 
-  // Inharmonic partials with short attacks and separate decays approximate a struck bell.
+  // Approximate the hum, prime, tierce, quint, and nominal of a struck bell.
+  // The brighter partials decay first, leaving the lower tones to ring.
   const tones = [
-    { frequency: 740, amplitude: 0.34, decay: 0.55 },
-    { frequency: 1490, amplitude: 0.18, decay: 0.34 },
-    { frequency: 2050, amplitude: 0.12, decay: 0.19 },
-    { frequency: 3230, amplitude: 0.06, decay: 0.11 },
+    { frequency: 330, amplitude: 0.03, decay: 0.32, tail: 0.40 },
+    { frequency: 660, amplitude: 0.83, decay: 0.46, tail: 0.94 },
+    { frequency: 792, amplitude: 0.03, decay: 0.26, tail: 0.27 },
+    { frequency: 990, amplitude: 0.02, decay: 0.19, tail: 0.18 },
+    { frequency: 1320, amplitude: 0.08, decay: 0.10, tail: 0.12 },
   ];
+  const duration = 0.55;
   for (let strike = 0; strike < count; strike += 1) {
     const start = Math.max(audio.currentTime + 0.01, nextStrike);
-    for (const { frequency, amplitude, decay } of tones) {
+    for (const { frequency, amplitude, decay, tail } of tones) {
       const oscillator = audio.createOscillator();
       const envelope = audio.createGain();
       oscillator.frequency.value = frequency;
-      envelope.gain.setValueAtTime(0.001, start);
-      envelope.gain.exponentialRampToValueAtTime(amplitude, start + 0.008);
-      envelope.gain.exponentialRampToValueAtTime(0.001, start + decay);
+      envelope.gain.setValueAtTime(0, start);
+      envelope.gain.linearRampToValueAtTime(amplitude, start + 0.004);
+      envelope.gain.exponentialRampToValueAtTime(amplitude * tail, start + decay);
+      envelope.gain.linearRampToValueAtTime(0, start + duration);
       oscillator.connect(envelope);
       envelope.connect(bellVolume);
       oscillator.onended = () => {
@@ -228,9 +286,9 @@ function ring(count) {
       };
       bellNodes.add(oscillator);
       oscillator.start(start);
-      oscillator.stop(start + decay);
+      oscillator.stop(start + duration);
     }
-    nextStrike = start + 0.36;
+    nextStrike = start + duration + 0.02;
   }
   nextStrike += 0.22;
 }
@@ -300,32 +358,59 @@ poi.addEventListener("click", () => {
 reset.addEventListener("click", resetClock);
 previous.addEventListener("click", () => changeSpeaker(-1));
 next.addEventListener("click", () => changeSpeaker(1));
-for (const format of ["bp", "opd"]) {
-  byId(format).addEventListener("click", () => {
-    if (format === preferences.format) return;
-    preferences.format = format;
-    savePreferences();
-    speakerIndex = 0;
-    resetClock();
-    renderSpeaker();
-  });
+function changeFormat(format) {
+  if (format === preferences.format) return;
+  preferences.format = format;
+  savePreferences();
+  speakerIndex = 0;
+  resetClock();
+  renderSpeaker();
 }
 
-let swipeStart = null;
-timerPanel.addEventListener("pointerdown", (event) => {
-  if (!event.isPrimary || event.pointerType === "mouse" || event.target.closest("button")) return;
-  swipeStart = { x: event.clientX, y: event.clientY, id: event.pointerId };
-  timerPanel.setPointerCapture(event.pointerId);
-});
-timerPanel.addEventListener("pointercancel", () => { swipeStart = null; });
-timerPanel.addEventListener("pointerup", (event) => {
-  if (swipeStart === null || swipeStart.id !== event.pointerId) return;
-  const dx = event.clientX - swipeStart.x;
-  const dy = event.clientY - swipeStart.y;
-  swipeStart = null;
-  if (Math.abs(dx) >= 55 && Math.abs(dx) >= 1.5 * Math.abs(dy)) {
-    changeSpeaker(dx < 0 ? 1 : -1);
+for (const format of ["bp", "opd"]) {
+  byId(format).addEventListener("click", () => changeFormat(format));
+}
+
+function handleSwipe(element, onSwipe, { fromButtons = false, minDistance = 55 } = {}) {
+  let start = null;
+  let swiped = false;
+  element.addEventListener("pointerdown", (event) => {
+    if (!event.isPrimary) return;
+    swiped = false;
+    if (event.button !== 0) return;
+    if (!fromButtons && (event.pointerType === "mouse" || event.target.closest("button"))) return;
+    start = { x: event.clientX, y: event.clientY, id: event.pointerId };
+    // Keep the original target so tapping a slider button still clicks it.
+    event.target.setPointerCapture(event.pointerId);
+  });
+  element.addEventListener("pointercancel", () => { start = null; });
+  element.addEventListener("pointerup", (event) => {
+    if (start === null || start.id !== event.pointerId) return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    start = null;
+    if (Math.abs(dx) < minDistance || Math.abs(dx) < 1.5 * Math.abs(dy)) return;
+    swiped = true;
+    onSwipe(dx);
+  });
+  if (fromButtons) {
+    element.addEventListener("click", (event) => {
+      if (swiped && event.detail > 0) event.stopPropagation();
+    }, { capture: true });
   }
+}
+
+handleSwipe(timerPanel, (dx) => changeSpeaker(dx < 0 ? 1 : -1));
+handleSwipe(formatSlider, (dx) => changeFormat(dx > 0 ? "opd" : "bp"), {
+  fromButtons: true,
+  minDistance: 24,
+});
+formatSlider.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  const format = event.key === "ArrowRight" ? "opd" : "bp";
+  changeFormat(format);
+  byId(format).focus();
 });
 
 function renderVolume() {
@@ -346,25 +431,44 @@ testBell.addEventListener("click", async () => {
 
 byId("open-settings").addEventListener("click", () => {
   speechInput.value = clockTime(preferences.speech);
-  speechInput.setCustomValidity("");
   graceInput.value = preferences.grace;
+  freeSpeechInput.value = clockTime(preferences.freeSpeech);
+  freeGraceInput.value = preferences.freeGrace;
   freeSpeakersInput.value = preferences.freeSpeakers;
-  freeSpeakersInput.setCustomValidity("");
+  protectionInputs.forEach((input, index) => { input.value = preferences.protection[index]; });
+  freeProtectionInputs.forEach((input, index) => { input.value = preferences.freeProtection[index]; });
+  clearSettingsErrors();
   byId("opd-settings").hidden = preferences.format !== "opd";
   settingsDialog.showModal();
 });
 byId("cancel-settings").addEventListener("click", () => settingsDialog.close());
-speechInput.addEventListener("input", () => speechInput.setCustomValidity(""));
-freeSpeakersInput.addEventListener("input", () => freeSpeakersInput.setCustomValidity(""));
-byId("settings-form").addEventListener("submit", (event) => {
+function clearSettingsErrors() {
+  for (const input of [freeSpeakersInput, protectionInputs[1], freeProtectionInputs[1]]) {
+    input.setCustomValidity("");
+  }
+}
+settingsForm.addEventListener("input", clearSettingsErrors);
+function readSpeechDuration(input) {
+  const [minutes, seconds] = input.value.split(":").map(Number);
+  return minutes * 60 + seconds;
+}
+
+settingsForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  const [minutes, seconds] = speechInput.value.split(":").map(Number);
-  const speech = minutes * 60 + seconds;
+  const speech = readSpeechDuration(speechInput);
+  const freeSpeech = readSpeechDuration(freeSpeechInput);
   const freeSpeakers = freeSpeakersInput.valueAsNumber;
-  if (speech < 121) {
-    speechInput.setCustomValidity("Enter at least 2:01 to leave room for unprotected time.");
-    speechInput.reportValidity();
-    return;
+  const protection = protectionInputs.map((input) => input.valueAsNumber);
+  const freeProtection = freeProtectionInputs.map((input) => input.valueAsNumber);
+  for (const [values, duration, closingInput] of [
+    [protection, speech, protectionInputs[1]],
+    [freeProtection, freeSpeech, freeProtectionInputs[1]],
+  ]) {
+    if (!validProtection(values, duration)) {
+      closingInput.setCustomValidity("Leave at least one second of unprotected time.");
+      closingInput.reportValidity();
+      return;
+    }
   }
   if (!wholeNumber(freeSpeakers, 0, Number.MAX_SAFE_INTEGER - 6)) {
     freeSpeakersInput.setCustomValidity("Enter a whole number of free speakers.");
@@ -372,6 +476,10 @@ byId("settings-form").addEventListener("submit", (event) => {
     return;
   }
   preferences.speech = speech;
+  preferences.freeSpeech = freeSpeech;
+  preferences.freeGrace = freeGraceInput.valueAsNumber;
+  preferences.protection = protection;
+  preferences.freeProtection = freeProtection;
   preferences.grace = graceInput.valueAsNumber;
   preferences.freeSpeakers = freeSpeakers;
   savePreferences();
@@ -381,6 +489,10 @@ byId("settings-form").addEventListener("submit", (event) => {
   settingsDialog.close();
 });
 
+// Safari exposes pinch gestures separately from pointer events.
+for (const type of ["gesturestart", "gesturechange"]) {
+  document.addEventListener(type, (event) => event.preventDefault(), { passive: false });
+}
 document.addEventListener("visibilitychange", tick);
 renderVolume();
 resetClock();

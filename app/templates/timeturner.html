@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Timeturner · Isartab</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/css/timeturner.css">
@@ -10,10 +10,14 @@
 </head>
 <body>
   <header class="toolbar">
-    <div class="formats" role="group" aria-label="Debate format">
+    <div id="format-slider" class="formats" role="group" aria-label="Debate format" data-format="bp">
+      <span class="format-highlight" aria-hidden="true"></span>
       <button id="bp" type="button" aria-pressed="true">BP</button>
       <button id="opd" type="button" aria-pressed="false">OPD</button>
     </div>
+    <a class="home" href="/" aria-label="Back to home">
+      <img src="/static/assets/isartab_logo.png" alt="Isartab">
+    </a>
     <div class="tools">
       <button id="open-sound" type="button">Sound</button>
       <button id="open-settings" type="button">Settings</button>
@@ -23,14 +27,16 @@
   <main id="timer-panel">
     <div class="speaker-navigation">
       <button id="previous" class="arrow" type="button" aria-label="Previous speaker" disabled>‹</button>
-      <div class="speaker" aria-live="polite" aria-atomic="true">
-        <p id="speaker-index">Speaker 1 of 8</p>
-        <h1 id="speaker-name">Prime Minister</h1>
+      <div class="speaker-window">
+        <div id="speaker" class="speaker" aria-live="polite" aria-atomic="true">
+          <p id="speaker-index">Speaker 1 of 8</p>
+          <h1 id="speaker-name">Prime Minister</h1>
+        </div>
       </div>
       <button id="next" class="arrow" type="button" aria-label="Next speaker">›</button>
     </div>
 
-    <div id="countdown" role="timer" aria-label="Speech time remaining">7:15</div>
+    <div id="speech-clock" role="timer" aria-label="Elapsed speech time">0:00</div>
     <p id="phase" role="status" data-phase="0">Protected time</p>
     <div class="timeline" aria-hidden="true">
       <span></span><span></span><span></span><span></span>
@@ -61,15 +67,28 @@
   <dialog id="settings" aria-labelledby="settings-title">
     <form id="settings-form">
       <h2 id="settings-title">Timer settings</h2>
-      <label for="speech-duration">Speech duration <small>(minutes:seconds)</small></label>
-      <input id="speech-duration" type="text" value="7:00" required pattern="[0-9]{1,3}:[0-5][0-9]" aria-describedby="speech-note">
-      <p id="speech-note">The first and last minute are protected.</p>
-      <label for="grace-duration">Grace period <small>(seconds)</small></label>
-      <input id="grace-duration" type="number" min="1" max="599" required value="15">
+      <div>
+        <label for="speech-duration">Speech duration <small>(minutes:seconds)</small></label>
+        <input id="speech-duration" type="text" value="7:00" required pattern="[0-9]{1,3}:[0-5][0-9]">
+      </div>
+      <div>
+        <label for="grace-duration">Grace period <small>(seconds)</small></label>
+        <input id="grace-duration" type="number" min="1" max="599" required value="15">
+      </div>
+      <fieldset>
+        <legend>Protected time <small>(seconds)</small></legend>
+        <label>Opening <input id="opening-protection" type="number" min="1" required value="60"></label>
+        <label>Closing <input id="closing-protection" type="number" min="1" required value="60"></label>
+      </fieldset>
       <div id="opd-settings" hidden>
-        <label for="free-speakers">OPD free speakers</label>
-        <input id="free-speakers" type="number" min="0" step="1" required value="3">
-        <p>Each free speaker has 3:30 plus the grace period.</p>
+        <fieldset>
+          <legend>OPD free speakers</legend>
+          <label>Count <input id="free-speakers" type="number" min="0" step="1" required value="3"></label>
+          <label>Speech (m:ss) <input id="free-speech-duration" type="text" value="3:30" required pattern="[0-9]{1,3}:[0-5][0-9]"></label>
+          <label>Grace (s) <input id="free-grace-duration" type="number" min="1" max="599" required value="15"></label>
+          <label>Opening (s) <input id="free-opening-protection" type="number" min="1" required value="60"></label>
+          <label>Closing (s) <input id="free-closing-protection" type="number" min="1" required value="30"></label>
+        </fieldset>
       </div>
       <p id="settings-note">Saving changes resets the current timer.</p>
       <div class="dialog-actions">
