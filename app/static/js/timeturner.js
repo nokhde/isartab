@@ -19,10 +19,11 @@ const opdOpeningSpeakers = [
 const phases = ["Protected time", "Unprotected time", "Protected time", "Grace period", "Time is up"];
 const poiDuration = 15_000;
 const preferenceKey = "isartab.timeturner";
+const maxFreeSpeakers = Math.floor((Number.MAX_SAFE_INTEGER - 6) / 2);
 const defaults = {
   speech: 420, protection: [60, 60], grace: 15,
   freeSpeech: 210, freeProtection: [60, 30], freeGrace: 15,
-  freeSpeakers: 3, volume: 70, format: "bp",
+  freeSpeakers: 3, answerSpeech: 60, volume: 70, format: "bp",
 };
 
 const byId = (id) => document.getElementById(id);
@@ -44,6 +45,7 @@ const graceInput = byId("grace-duration");
 const freeSpeechInput = byId("free-speech-duration");
 const freeGraceInput = byId("free-grace-duration");
 const freeSpeakersInput = byId("free-speakers");
+const answerSpeechInput = byId("answer-speech-duration");
 const protectionInputs = [byId("opening-protection"), byId("closing-protection")];
 const freeProtectionInputs = [byId("free-opening-protection"), byId("free-closing-protection")];
 const settingsForm = byId("settings-form");
@@ -78,8 +80,10 @@ function loadPreferences() {
         freeSpeech,
         freeProtection,
         freeGrace: wholeNumber(stored.freeGrace, 1, 599) ? stored.freeGrace : grace,
-        freeSpeakers: wholeNumber(stored.freeSpeakers, 0, Number.MAX_SAFE_INTEGER - 6)
+        freeSpeakers: wholeNumber(stored.freeSpeakers, 0, maxFreeSpeakers)
           ? stored.freeSpeakers : defaults.freeSpeakers,
+        answerSpeech: wholeNumber(stored.answerSpeech, 1, 59_999)
+          ? stored.answerSpeech : defaults.answerSpeech,
         volume: wholeNumber(stored.volume, 0, 100) ? stored.volume : defaults.volume,
         format: stored.format === "opd" ? "opd" : "bp",
       };
@@ -99,6 +103,8 @@ let nextCue = 0;
 let poiEndsAt = null;
 let deferredCues = [];
 let tickId = null;
+let screenLock = null;
+let screenLockPending = false;
 let audio;
 let bellVolume;
 let bellAvailable = false;
@@ -114,22 +120,60 @@ function savePreferences() {
 }
 
 function speakerCount() {
-  return preferences.format === "bp" ? bpSpeakers.length : 6 + preferences.freeSpeakers;
+  return preferences.format === "bp" ? bpSpeakers.length : 6 + 2 * preferences.freeSpeakers;
 }
 
 function currentSpeaker() {
   if (preferences.format === "bp") return bpSpeakers[speakerIndex];
   if (speakerIndex < opdOpeningSpeakers.length) return opdOpeningSpeakers[speakerIndex];
-  if (isFreeSpeaker()) return `Free Speaker ${speakerIndex - opdOpeningSpeakers.length + 1}`;
+  if (isAnswerSpeech()) return "Answer Speech";
+  if (isFreeSpeaker()) return `Free Speaker ${Math.floor((speakerIndex - opdOpeningSpeakers.length) / 2) + 1}`;
+  return speakerIndex === speakerCount() - 1 ? "Third Speaker of Government" : "Third Speaker of Opposition";
+}
 
-  const oppositionCloses = preferences.freeSpeakers === 0;
-  const finalSpeaker = speakerIndex === speakerCount() - 1;
-  return finalSpeaker === oppositionCloses ? "Third Speaker of Opposition" : "Third Speaker of Government";
+function isFreeSpeakerRound() {
+  return preferences.format === "opd" &&
+    speakerIndex >= opdOpeningSpeakers.length && speakerIndex < speakerCount() - 2;
 }
 
 function isFreeSpeaker() {
-  return preferences.format === "opd" &&
-    speakerIndex >= opdOpeningSpeakers.length && speakerIndex < speakerCount() - 2;
+  return isFreeSpeakerRound() && (speakerIndex - opdOpeningSpeakers.length) % 2 === 0;
+}
+
+function isAnswerSpeech() {
+  return isFreeSpeakerRound() && !isFreeSpeaker();
+}
+
+function needsScreenLock() {
+  return (startedAt !== null || poiEndsAt !== null) && document.visibilityState === "visible";
+}
+
+async function releaseScreenLock() {
+  const lock = screenLock;
+  screenLock = null;
+  try {
+    await lock?.release();
+  } catch {
+    // The browser may already have released the lock.
+  }
+}
+
+async function requestScreenLock() {
+  if (!navigator.wakeLock || !needsScreenLock() || screenLock || screenLockPending) return;
+  screenLockPending = true;
+  try {
+    const lock = await navigator.wakeLock.request("screen");
+    if (lock.released) return;
+    screenLock = lock;
+    lock.addEventListener("release", () => {
+      if (screenLock === lock) screenLock = null;
+    });
+    if (!needsScreenLock()) void releaseScreenLock();
+  } catch {
+    // Screen wake lock may be unavailable or denied.
+  } finally {
+    screenLockPending = false;
+  }
 }
 
 function clockTime(seconds) {
@@ -137,7 +181,7 @@ function clockTime(seconds) {
 }
 
 function renderClock(now) {
-  const activePhase = nextCue;
+  const activePhase = nextCue === boundaries.length ? 4 : nextCue;
   const elapsedText = clockTime(Math.floor(elapsed / 1000));
   if (speechClock.textContent !== elapsedText) speechClock.textContent = elapsedText;
   speechClock.classList.toggle("long-duration", elapsedText.length > 5);
@@ -148,6 +192,8 @@ function renderClock(now) {
 
   let segmentStart = 0;
   segments.forEach((segment, index) => {
+    segment.hidden = index >= boundaries.length;
+    if (segment.hidden) return;
     const duration = boundaries[index] - segmentStart;
     const fill = Math.max(0, Math.min(1, (elapsed - segmentStart) / duration));
     segment.style.setProperty("--duration", duration);
@@ -159,7 +205,7 @@ function renderClock(now) {
   poi.textContent = poiActive ? `End POI · ${Math.ceil((poiEndsAt - now) / 1000)}s` : "POI";
   poi.setAttribute("aria-pressed", String(poiActive));
   poi.setAttribute("aria-label", poiActive ? "End point of information" : "Start point of information");
-  poi.disabled = !poiActive && startedAt === null;
+  poi.disabled = isAnswerSpeech() || (!poiActive && startedAt === null);
   testBell.disabled = poiActive;
   toggle.disabled = activePhase === 4 && poiActive;
   toggle.textContent = startedAt !== null ? "Stop" : activePhase === 4 ? "Start again" : elapsed > 0 ? "Resume" : "Start";
@@ -187,12 +233,13 @@ function resetClock() {
   nextCue = 0;
   poiEndsAt = null;
   deferredCues = [];
+  void releaseScreenLock();
   const free = isFreeSpeaker();
   const speech = free ? preferences.freeSpeech : preferences.speech;
   const [opening, closing] = free ? preferences.freeProtection : preferences.protection;
   const grace = free ? preferences.freeGrace : preferences.grace;
-  boundaries = [opening, speech - closing, speech, speech + grace]
-    .map((seconds) => seconds * 1000);
+  const phaseEnds = isAnswerSpeech() ? [preferences.answerSpeech] : [opening, speech - closing, speech, speech + grace];
+  boundaries = phaseEnds.map((seconds) => seconds * 1000);
   byId("poi-status").textContent = "";
   renderClock(performance.now());
 }
@@ -303,8 +350,8 @@ function endPoi(expired) {
 
 function updateClock(now) {
   if (startedAt !== null) {
-    const cueCounts = [1, 1, 2, 3];
-    elapsed = Math.min(now - startedAt, boundaries[3]);
+    const cueCounts = isAnswerSpeech() ? [2] : [1, 1, 2, 3];
+    elapsed = Math.min(now - startedAt, boundaries[boundaries.length - 1]);
     while (elapsed >= boundaries[nextCue]) {
       const cueAt = startedAt + boundaries[nextCue];
       if (poiEndsAt !== null && cueAt >= poiEndsAt) endPoi(true);
@@ -324,6 +371,7 @@ function tick() {
   clearTimeout(tickId);
   updateClock(performance.now());
   if (startedAt !== null || poiEndsAt !== null) tickId = setTimeout(tick, 50);
+  if (screenLock && !needsScreenLock()) void releaseScreenLock();
 }
 
 toggle.addEventListener("click", () => {
@@ -339,6 +387,7 @@ toggle.addEventListener("click", () => {
     startedAt = now - elapsed;
   }
   tick();
+  if (!wasRunning) void requestScreenLock();
 });
 
 poi.addEventListener("click", () => {
@@ -347,7 +396,7 @@ poi.addEventListener("click", () => {
   updateClock(now);
   if (wasActive) {
     if (poiEndsAt !== null) endPoi(false);
-  } else if (startedAt !== null) {
+  } else if (startedAt !== null && !isAnswerSpeech()) {
     cancelBells();
     poiEndsAt = now + poiDuration;
     byId("poi-status").textContent = "15-second point of information started.";
@@ -435,6 +484,7 @@ byId("open-settings").addEventListener("click", () => {
   freeSpeechInput.value = clockTime(preferences.freeSpeech);
   freeGraceInput.value = preferences.freeGrace;
   freeSpeakersInput.value = preferences.freeSpeakers;
+  answerSpeechInput.value = clockTime(preferences.answerSpeech);
   protectionInputs.forEach((input, index) => { input.value = preferences.protection[index]; });
   freeProtectionInputs.forEach((input, index) => { input.value = preferences.freeProtection[index]; });
   clearSettingsErrors();
@@ -443,7 +493,7 @@ byId("open-settings").addEventListener("click", () => {
 });
 byId("cancel-settings").addEventListener("click", () => settingsDialog.close());
 function clearSettingsErrors() {
-  for (const input of [freeSpeakersInput, protectionInputs[1], freeProtectionInputs[1]]) {
+  for (const input of [freeSpeakersInput, answerSpeechInput, protectionInputs[1], freeProtectionInputs[1]]) {
     input.setCustomValidity("");
   }
 }
@@ -458,6 +508,7 @@ settingsForm.addEventListener("submit", (event) => {
   const speech = readSpeechDuration(speechInput);
   const freeSpeech = readSpeechDuration(freeSpeechInput);
   const freeSpeakers = freeSpeakersInput.valueAsNumber;
+  const answerSpeech = readSpeechDuration(answerSpeechInput);
   const protection = protectionInputs.map((input) => input.valueAsNumber);
   const freeProtection = freeProtectionInputs.map((input) => input.valueAsNumber);
   for (const [values, duration, closingInput] of [
@@ -470,9 +521,14 @@ settingsForm.addEventListener("submit", (event) => {
       return;
     }
   }
-  if (!wholeNumber(freeSpeakers, 0, Number.MAX_SAFE_INTEGER - 6)) {
+  if (!wholeNumber(freeSpeakers, 0, maxFreeSpeakers)) {
     freeSpeakersInput.setCustomValidity("Enter a whole number of free speakers.");
     freeSpeakersInput.reportValidity();
+    return;
+  }
+  if (!wholeNumber(answerSpeech, 1, 59_999)) {
+    answerSpeechInput.setCustomValidity("Enter an answer speech duration of at least one second.");
+    answerSpeechInput.reportValidity();
     return;
   }
   preferences.speech = speech;
@@ -482,6 +538,7 @@ settingsForm.addEventListener("submit", (event) => {
   preferences.freeProtection = freeProtection;
   preferences.grace = graceInput.valueAsNumber;
   preferences.freeSpeakers = freeSpeakers;
+  preferences.answerSpeech = answerSpeech;
   savePreferences();
   speakerIndex = Math.min(speakerIndex, speakerCount() - 1);
   resetClock();
@@ -493,7 +550,10 @@ settingsForm.addEventListener("submit", (event) => {
 for (const type of ["gesturestart", "gesturechange"]) {
   document.addEventListener(type, (event) => event.preventDefault(), { passive: false });
 }
-document.addEventListener("visibilitychange", tick);
+document.addEventListener("visibilitychange", () => {
+  tick();
+  void requestScreenLock();
+});
 renderVolume();
 resetClock();
 renderSpeaker();
