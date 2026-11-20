@@ -78,7 +78,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 .formats {
   position: relative;
   gap: 0;
-  width: clamp(6.25rem, 25vw, 10rem);
+  width: clamp(10rem, 33vw, 15rem);
   padding: 4px;
   border-radius: 15px;
   background: rgb(0 0 0 / 7%);
@@ -88,13 +88,14 @@ button:disabled { opacity: 0.45; cursor: default; }
 .format-highlight {
   position: absolute;
   inset: 4px auto 4px 4px;
-  width: calc((100% - 8px) / 2);
+  width: calc((100% - 8px) / 3);
   border-radius: 12px;
   background: #ffd200;
   pointer-events: none;
   transition: transform 300ms ease;
 }
 
+.formats[data-format="wsdc"] .format-highlight { transform: translateX(200%); }
 .formats[data-format="opd"] .format-highlight { transform: translateX(100%); }
 .formats button, .formats button:hover:not(:disabled) {
   position: relative;
@@ -179,8 +180,8 @@ h1, h2 { font-weight: 600; }
   --ink: #616161;
 }
 
-.timeline span:nth-child(2) { --ink: #ffd200; }
-.timeline span:nth-child(4) { --ink: #c76200; }
+.timeline span[data-phase="1"] { --ink: #ffd200; }
+.timeline span[data-phase="3"] { --ink: #c76200; }
 .controls { justify-content: center; flex-wrap: wrap; }
 .controls button { min-width: 5rem; }
 #poi[aria-pressed="true"] { background: #ffd200; color: #784100; }

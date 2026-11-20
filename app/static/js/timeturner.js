@@ -16,11 +16,15 @@ const opdOpeningSpeakers = [
   "Second Speaker of Government",
   "Second Speaker of Opposition",
 ];
+const formats = ["bp", "opd", "wsdc"];
+const wsdcSpeakers = ["1st PROP", "1st OPP", "2nd PROP", "2nd OPP", "3rd PROP", "3rd OPP", "Reply OPP", "Reply PROP"];
 const phases = ["Protected time", "Unprotected time", "Protected time", "Grace period", "Time is up"];
 const poiDuration = 15_000;
 const preferenceKey = "isartab.timeturner";
 const maxFreeSpeakers = Math.floor((Number.MAX_SAFE_INTEGER - 6) / 2);
 const defaults = {
+  wsdcSpeech: 480, wsdcProtection: [60, 60], wsdcGrace: 15,
+  replySpeech: 240, replyClosing: 60, replyGrace: 15,
   speech: 420, protection: [60, 60], grace: 15,
   freeSpeech: 210, freeProtection: [60, 30], freeGrace: 15,
   freeSpeakers: 3, answerSpeech: 60, volume: 70, format: "bp",
@@ -73,7 +77,18 @@ function loadPreferences() {
         ? stored.freeProtection : defaults.freeProtection;
       if (!validProtection(freeProtection, freeSpeech)) freeSpeech = defaults.freeSpeech;
       const grace = wholeNumber(stored.grace, 1, 599) ? stored.grace : defaults.grace;
+      const wsdcSpeech = wholeNumber(stored.wsdcSpeech, 3, 59_999) &&
+        validProtection(stored.wsdcProtection, stored.wsdcSpeech) ? stored.wsdcSpeech : defaults.wsdcSpeech;
+      const replySpeech = wholeNumber(stored.replySpeech, 2, 59_999) ? stored.replySpeech : defaults.replySpeech;
       return {
+        wsdcSpeech,
+        wsdcProtection: validProtection(stored.wsdcProtection, wsdcSpeech)
+          ? stored.wsdcProtection : defaults.wsdcProtection,
+        wsdcGrace: wholeNumber(stored.wsdcGrace, 1, 599) ? stored.wsdcGrace : defaults.wsdcGrace,
+        replySpeech,
+        replyClosing: wholeNumber(stored.replyClosing, 1, replySpeech - 1)
+          ? stored.replyClosing : Math.min(defaults.replyClosing, replySpeech - 1),
+        replyGrace: wholeNumber(stored.replyGrace, 1, 599) ? stored.replyGrace : defaults.replyGrace,
         speech,
         protection,
         grace,
@@ -85,7 +100,7 @@ function loadPreferences() {
         answerSpeech: wholeNumber(stored.answerSpeech, 1, 59_999)
           ? stored.answerSpeech : defaults.answerSpeech,
         volume: wholeNumber(stored.volume, 0, 100) ? stored.volume : defaults.volume,
-        format: stored.format === "opd" ? "opd" : "bp",
+        format: formats.includes(stored.format) ? stored.format : "bp",
       };
     }
   } catch {
@@ -97,6 +112,8 @@ function loadPreferences() {
 const preferences = loadPreferences();
 let speakerIndex = 0;
 let boundaries;
+let cueCounts;
+let phaseIndices;
 let elapsed = 0;
 let startedAt = null;
 let nextCue = 0;
@@ -120,10 +137,15 @@ function savePreferences() {
 }
 
 function speakerCount() {
-  return preferences.format === "bp" ? bpSpeakers.length : 6 + 2 * preferences.freeSpeakers;
+  return preferences.format === "wsdc" ? wsdcSpeakers.length : preferences.format === "bp" ? bpSpeakers.length : 6 + 2 * preferences.freeSpeakers;
+}
+
+function isReplySpeech() {
+  return preferences.format === "wsdc" && speakerIndex >= 6;
 }
 
 function currentSpeaker() {
+  if (preferences.format === "wsdc") return wsdcSpeakers[speakerIndex];
   if (preferences.format === "bp") return bpSpeakers[speakerIndex];
   if (speakerIndex < opdOpeningSpeakers.length) return opdOpeningSpeakers[speakerIndex];
   if (isAnswerSpeech()) return "Answer Speech";
@@ -181,7 +203,7 @@ function clockTime(seconds) {
 }
 
 function renderClock(now) {
-  const activePhase = nextCue === boundaries.length ? 4 : nextCue;
+  const activePhase = nextCue === boundaries.length ? 4 : phaseIndices[nextCue];
   const elapsedText = clockTime(Math.floor(elapsed / 1000));
   if (speechClock.textContent !== elapsedText) speechClock.textContent = elapsedText;
   speechClock.classList.toggle("long-duration", elapsedText.length > 5);
@@ -192,6 +214,7 @@ function renderClock(now) {
 
   let segmentStart = 0;
   segments.forEach((segment, index) => {
+    segment.dataset.phase = phaseIndices[index];
     segment.hidden = index >= boundaries.length;
     if (segment.hidden) return;
     const duration = boundaries[index] - segmentStart;
@@ -205,7 +228,7 @@ function renderClock(now) {
   poi.textContent = poiActive ? `End POI · ${Math.ceil((poiEndsAt - now) / 1000)}s` : "POI";
   poi.setAttribute("aria-pressed", String(poiActive));
   poi.setAttribute("aria-label", poiActive ? "End point of information" : "Start point of information");
-  poi.disabled = isAnswerSpeech() || (!poiActive && startedAt === null);
+  poi.disabled = isAnswerSpeech() || isReplySpeech() || (!poiActive && startedAt === null);
   testBell.disabled = poiActive;
   toggle.disabled = activePhase === 4 && poiActive;
   toggle.textContent = startedAt !== null ? "Stop" : activePhase === 4 ? "Start again" : elapsed > 0 ? "Resume" : "Start";
@@ -220,7 +243,7 @@ function renderSpeaker() {
   previous.disabled = speakerIndex === 0;
   next.disabled = speakerIndex === speakerCount() - 1;
   formatSlider.dataset.format = preferences.format;
-  for (const format of ["bp", "opd"]) {
+  for (const format of formats) {
     byId(format).setAttribute("aria-pressed", String(format === preferences.format));
   }
 }
@@ -235,10 +258,17 @@ function resetClock() {
   deferredCues = [];
   void releaseScreenLock();
   const free = isFreeSpeaker();
-  const speech = free ? preferences.freeSpeech : preferences.speech;
-  const [opening, closing] = free ? preferences.freeProtection : preferences.protection;
-  const grace = free ? preferences.freeGrace : preferences.grace;
-  const phaseEnds = isAnswerSpeech() ? [preferences.answerSpeech] : [opening, speech - closing, speech, speech + grace];
+  const wsdc = preferences.format === "wsdc";
+  const speech = wsdc ? preferences.wsdcSpeech : free ? preferences.freeSpeech : preferences.speech;
+  const [opening, closing] = wsdc ? preferences.wsdcProtection : free ? preferences.freeProtection : preferences.protection;
+  const grace = wsdc ? preferences.wsdcGrace : free ? preferences.freeGrace : preferences.grace;
+  const phaseEnds = isAnswerSpeech() ? [preferences.answerSpeech]
+    : isReplySpeech() ? [preferences.replySpeech - preferences.replyClosing, preferences.replySpeech, preferences.replySpeech + preferences.replyGrace]
+    : [opening, speech - closing, speech, speech + grace];
+  cueCounts = isAnswerSpeech() ? [2] : isReplySpeech() ? [1, 2, 3] : [1, 1, 2, 3];
+  // WSDC substantive speeches have no grace-period bell.
+  if (wsdc && !isReplySpeech()) cueCounts[3] = 0;
+  phaseIndices = isAnswerSpeech() ? [0] : isReplySpeech() ? [2, 2, 3] : [0, 1, 2, 3];
   boundaries = phaseEnds.map((seconds) => seconds * 1000);
   byId("poi-status").textContent = "";
   renderClock(performance.now());
@@ -303,7 +333,7 @@ function cancelBells() {
 }
 
 function ring(count) {
-  if (!bellAvailable) return;
+  if (count === 0 || !bellAvailable) return;
 
   // Approximate the hum, prime, tierce, quint, and nominal of a struck bell.
   // The brighter partials decay first, leaving the lower tones to ring.
@@ -350,7 +380,6 @@ function endPoi(expired) {
 
 function updateClock(now) {
   if (startedAt !== null) {
-    const cueCounts = isAnswerSpeech() ? [2] : [1, 1, 2, 3];
     elapsed = Math.min(now - startedAt, boundaries[boundaries.length - 1]);
     while (elapsed >= boundaries[nextCue]) {
       const cueAt = startedAt + boundaries[nextCue];
@@ -396,7 +425,7 @@ poi.addEventListener("click", () => {
   updateClock(now);
   if (wasActive) {
     if (poiEndsAt !== null) endPoi(false);
-  } else if (startedAt !== null && !isAnswerSpeech()) {
+  } else if (startedAt !== null && !isAnswerSpeech() && !isReplySpeech()) {
     cancelBells();
     poiEndsAt = now + poiDuration;
     byId("poi-status").textContent = "15-second point of information started.";
@@ -416,7 +445,7 @@ function changeFormat(format) {
   renderSpeaker();
 }
 
-for (const format of ["bp", "opd"]) {
+for (const format of formats) {
   byId(format).addEventListener("click", () => changeFormat(format));
 }
 
@@ -450,14 +479,17 @@ function handleSwipe(element, onSwipe, { fromButtons = false, minDistance = 55 }
 }
 
 handleSwipe(timerPanel, (dx) => changeSpeaker(dx < 0 ? 1 : -1));
-handleSwipe(formatSlider, (dx) => changeFormat(dx > 0 ? "opd" : "bp"), {
+function adjacentFormat(direction) {
+  return formats[Math.max(0, Math.min(formats.length - 1, formats.indexOf(preferences.format) + direction))];
+}
+handleSwipe(formatSlider, (dx) => changeFormat(adjacentFormat(dx > 0 ? 1 : -1)), {
   fromButtons: true,
   minDistance: 24,
 });
 formatSlider.addEventListener("keydown", (event) => {
   if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
   event.preventDefault();
-  const format = event.key === "ArrowRight" ? "opd" : "bp";
+  const format = adjacentFormat(event.key === "ArrowRight" ? 1 : -1);
   changeFormat(format);
   byId(format).focus();
 });
@@ -479,13 +511,18 @@ testBell.addEventListener("click", async () => {
 });
 
 byId("open-settings").addEventListener("click", () => {
-  speechInput.value = clockTime(preferences.speech);
-  graceInput.value = preferences.grace;
+  const wsdc = preferences.format === "wsdc";
+  speechInput.value = clockTime(wsdc ? preferences.wsdcSpeech : preferences.speech);
+  graceInput.value = wsdc ? preferences.wsdcGrace : preferences.grace;
+  byId("reply-speech-duration").value = clockTime(preferences.replySpeech);
+  byId("reply-closing").value = preferences.replyClosing;
+  byId("reply-grace").value = preferences.replyGrace;
+  byId("wsdc-settings").hidden = !wsdc;
   freeSpeechInput.value = clockTime(preferences.freeSpeech);
   freeGraceInput.value = preferences.freeGrace;
   freeSpeakersInput.value = preferences.freeSpeakers;
   answerSpeechInput.value = clockTime(preferences.answerSpeech);
-  protectionInputs.forEach((input, index) => { input.value = preferences.protection[index]; });
+  protectionInputs.forEach((input, index) => { input.value = (wsdc ? preferences.wsdcProtection : preferences.protection)[index]; });
   freeProtectionInputs.forEach((input, index) => { input.value = preferences.freeProtection[index]; });
   clearSettingsErrors();
   byId("opd-settings").hidden = preferences.format !== "opd";
@@ -493,7 +530,7 @@ byId("open-settings").addEventListener("click", () => {
 });
 byId("cancel-settings").addEventListener("click", () => settingsDialog.close());
 function clearSettingsErrors() {
-  for (const input of [freeSpeakersInput, answerSpeechInput, protectionInputs[1], freeProtectionInputs[1]]) {
+  for (const input of [byId("reply-closing"), freeSpeakersInput, answerSpeechInput, protectionInputs[1], freeProtectionInputs[1]]) {
     input.setCustomValidity("");
   }
 }
@@ -531,12 +568,28 @@ settingsForm.addEventListener("submit", (event) => {
     answerSpeechInput.reportValidity();
     return;
   }
-  preferences.speech = speech;
+  const replySpeech = readSpeechDuration(byId("reply-speech-duration"));
+  const replyClosing = byId("reply-closing").valueAsNumber;
+  if (!wholeNumber(replySpeech, 2, 59_999) || !wholeNumber(replyClosing, 1, replySpeech - 1)) {
+    byId("reply-closing").setCustomValidity("The closing bell must be before the end of the reply speech.");
+    byId("reply-closing").reportValidity();
+    return;
+  }
+  preferences.replySpeech = replySpeech;
+  preferences.replyClosing = replyClosing;
+  preferences.replyGrace = byId("reply-grace").valueAsNumber;
+  if (preferences.format === "wsdc") {
+    preferences.wsdcSpeech = speech;
+    preferences.wsdcProtection = protection;
+    preferences.wsdcGrace = graceInput.valueAsNumber;
+  } else {
+    preferences.speech = speech;
+    preferences.protection = protection;
+    preferences.grace = graceInput.valueAsNumber;
+  }
   preferences.freeSpeech = freeSpeech;
   preferences.freeGrace = freeGraceInput.valueAsNumber;
-  preferences.protection = protection;
   preferences.freeProtection = freeProtection;
-  preferences.grace = graceInput.valueAsNumber;
   preferences.freeSpeakers = freeSpeakers;
   preferences.answerSpeech = answerSpeech;
   savePreferences();

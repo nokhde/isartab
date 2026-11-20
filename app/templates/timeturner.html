@@ -14,6 +14,7 @@
       <span class="format-highlight" aria-hidden="true"></span>
       <button id="bp" type="button" aria-pressed="true">BP</button>
       <button id="opd" type="button" aria-pressed="false">OPD</button>
+      <button id="wsdc" type="button" aria-pressed="false">WSDC</button>
     </div>
     <a class="home" href="/" aria-label="Back to home">
       <img src="/static/assets/isartab_logo.png" alt="Isartab">
@@ -94,6 +95,12 @@
           <input id="answer-speech-duration" type="text" value="1:00" required pattern="[0-9]{1,3}:[0-5][0-9]">
         </div>
       </div>
+      <fieldset id="wsdc-settings" hidden>
+        <legend>WSDC replies (no POIs)</legend>
+        <label>Speech (m:ss) <input id="reply-speech-duration" type="text" value="4:00" required pattern="[0-9]{1,3}:[0-5][0-9]"></label>
+        <label>Closing bell before end (s) <input id="reply-closing" type="number" min="1" required value="60"></label>
+        <label>Grace (s) <input id="reply-grace" type="number" min="1" max="599" required value="15"></label>
+      </fieldset>
       <p id="settings-note">Saving changes resets the current timer.</p>
       <div class="dialog-actions">
         <button id="cancel-settings" type="button">Cancel</button>
