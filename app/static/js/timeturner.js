@@ -267,8 +267,6 @@ function resetClock() {
     : isReplySpeech() ? [preferences.replySpeech - preferences.replyClosing, preferences.replySpeech, preferences.replySpeech + preferences.replyGrace]
     : [opening, speech - closing, speech, speech + grace];
   cueCounts = isAnswerSpeech() ? [2] : isReplySpeech() ? [1, 2, 3] : [1, 1, 2, 3];
-  // WSDC substantive speeches have no grace-period bell.
-  if (wsdc && !isReplySpeech()) cueCounts[3] = 0;
   phaseIndices = isAnswerSpeech() ? [0] : isReplySpeech() ? [2, 2, 3] : [0, 1, 2, 3];
   boundaries = phaseEnds.map((seconds) => seconds * 1000);
   byId("poi-status").textContent = "";
