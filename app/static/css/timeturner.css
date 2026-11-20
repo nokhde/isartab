@@ -148,6 +148,11 @@ h1, h2 { font-weight: 600; }
   letter-spacing: -0.07em;
 }
 
+#speech-clock.running {
+  background: none;
+  color: #16803c;
+}
+
 #speech-clock.long-duration { font-size: clamp(2rem, 10vw, 6rem); }
 
 #phase {

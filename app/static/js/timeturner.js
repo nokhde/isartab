@@ -207,6 +207,7 @@ function renderClock(now) {
   const elapsedText = clockTime(Math.floor(elapsed / 1000));
   if (speechClock.textContent !== elapsedText) speechClock.textContent = elapsedText;
   speechClock.classList.toggle("long-duration", elapsedText.length > 5);
+  speechClock.classList.toggle("running", startedAt !== null);
   if (phase.dataset.phase !== String(activePhase)) {
     phase.dataset.phase = activePhase;
     phase.textContent = phases[activePhase];
